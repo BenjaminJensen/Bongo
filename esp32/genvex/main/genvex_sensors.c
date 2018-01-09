@@ -280,19 +280,26 @@ static void parse_string(uint8_t *buf)
 				else if(c == 't')
 				{
 					state = TEMP;
+					sensors[current_id].temperature = 0;
 				}
 				else if(c == 'p')
 				{
 					state = PRES;
+					sensors[current_id].pressure = 0;
 				}
 				else if(c == 'h')
 				{
 					state = HUMI;
+					sensors[current_id].humidity = 0;
 				}
 				else if(c == '\r')
 				{
 					// Send current values
-					//ESP_LOGI(TAG, "ID: %d, t:%f h:%f p:%f", current_id, current_temp, current_humi, current_pres);
+					ESP_LOGI(TAG, "ID: %d, t:%f h:%f p:%f",
+							current_id,
+							sensors[current_id].temperature,
+							sensors[current_id].humidity,
+							sensors[current_id].pressure);
 
 					publish_sensors(current_id);
 					// reset current values
@@ -329,7 +336,7 @@ static uint8_t get_float(char c, float* value)
 
 	if(is_int(c) && level >= 0)
 	{
-		*value = (float)(c - '0') + (*value)*10*level;
+		*value = (int32_t)(c - '0') + (*value)*10;
 		level++;
 	}
 	else if(c == '.')

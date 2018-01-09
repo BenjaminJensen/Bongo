@@ -21,8 +21,8 @@ void setup() {
 
     id = getID();
     Serial.begin(9600);
-    Serial.print("BME280 node:");
-    Serial.println(id);
+    //Serial.print("BME280 node:");
+    //Serial.println(id);
 
     Wire.begin();
     if (! bme.begin(&Wire)) {
@@ -119,19 +119,19 @@ int readline(int readch, char *buffer, int len)
 }
 
 void sendValues() {
-    Serial.print("D:ID=");
+    Serial.print("i");
     Serial.print(id);
     
-    Serial.print(";T=");
+    Serial.print("t");
     Serial.print(bme.readTemperature());
 
-    Serial.print(";P=");
+    Serial.print("p");
     Serial.print(bme.readPressure() / 100.0F);
 
-    Serial.print(";A=");
-    Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
+    //Serial.print("");
+    //Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
 
-    Serial.print(";H=");
+    Serial.print("h");
     Serial.print(bme.readHumidity());
 
     Serial.println();
