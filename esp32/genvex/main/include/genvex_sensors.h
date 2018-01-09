@@ -9,6 +9,7 @@
 #define MAIN_INCLUDE_GENVEX_SENSORS_H_
 
 void init_genvex_sensor(void);
-int get_value(void);
 
+void genvex_wifi_connect(void);
+void genvex_wifi_disconnect(void);
 #endif /* MAIN_INCLUDE_GENVEX_SENSORS_H_ */

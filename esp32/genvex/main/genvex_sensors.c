@@ -4,7 +4,9 @@
  *  Created on: 30. dec. 2017
  *      Author: Benjamin
  */
-
+/************************************************
+ * Includes
+ ***********************************************/
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -16,21 +18,47 @@
 #include "freertos/event_groups.h"
 #include "freertos/task.h"
 
-#include "esp_log.h"
+#include <esp_log.h>
 #include "driver/uart.h"
+#include "MQTTClient.h"
 
+/************************************************
+ * Defines
+ ***********************************************/
 #define ECHO_TEST_TXD  (17)
 #define ECHO_TEST_RXD  (16)
 #define BUF_SIZE (128)
 
+#define NUM_SENSORS 4
+
+// Define the MQTT Broker's hostname, port, username and passphrase. To
+// configure these values, run 'make menuconfig'.
+#define MQTT_HOST CONFIG_MQTT_BROKER
+#define MQTT_PORT CONFIG_MQTT_PORT
+#define MQTT_USER CONFIG_MQTT_USER
+#define MQTT_PASS CONFIG_MQTT_PASS
+
+/************************************************
+ * Locals
+ ***********************************************/
+typedef struct {
+
+	int32_t id;
+	float temperature;
+	float pressure;
+	float humidity;
+
+} sensor_t;
+static sensor_t sensors[NUM_SENSORS] = {0};
+
 static const char* TAG = "Sensor Module";
 
+MQTTClient client;
 static TaskHandle_t task = NULL;
-static void process_uart(void *p);
-static void parse_string(uint8_t *buf);
-static uint8_t get_int(char c, int32_t* value);
-static uint8_t get_float(char c, float* value);
-static uint8_t is_int(char c);
+Network network;
+
+static unsigned char sendBuf[1000];
+static unsigned char readBuf[1000];
 
 enum state_t {
     IDLE = 0,
@@ -40,7 +68,19 @@ enum state_t {
 	HUMI
 };
 
-void init_genvex_sensor(void)
+/************************************************
+ * Local function declarations
+ ***********************************************/
+static void process_uart(void *p);
+static void parse_string(uint8_t *buf);
+static uint8_t get_int(char c, int32_t* value);
+static uint8_t get_float(char c, float* value);
+static uint8_t is_int(char c);
+
+/************************************************
+ * Exported functions
+ ***********************************************/
+void init_genvex_sensor()
 {
 	uart_config_t uart_config = {
 		.baud_rate = 9600,
@@ -57,13 +97,106 @@ void init_genvex_sensor(void)
 	//In this example we don't even use a buffer for sending data.
 	ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, BUF_SIZE * 2, 0, 0, NULL, 0));
 
-	xTaskCreate(process_uart,"UART_TASK",8*1024,NULL,10,&task);
+	xTaskCreate(process_uart,"SENSOR_TASK", 32*1024, NULL, 10, &task);
 }
 
-int get_value(void)
+void genvex_wifi_connect(void)
 {
+	int rc;
+	NetworkInit(&network);
+	NetworkConnect(&network, "192.168.1.252", 1883);
 
-	return 1;
+	MQTTClientInit(&client, &network,
+		1000,            // command_timeout_ms
+		sendBuf,         //sendbuf,
+		sizeof(sendBuf), //sendbuf_size,
+		readBuf,         //readbuf,
+		sizeof(readBuf)  //readbuf_size
+	);
+
+	MQTTString clientId = MQTTString_initializer;
+	clientId.cstring = "Genvex";
+
+	MQTTPacket_connectData data = MQTTPacket_connectData_initializer;
+	data.clientID          = clientId;
+	data.willFlag          = 0;
+	data.MQTTVersion       = 3;
+	data.keepAliveInterval = 0;
+	data.cleansession      = 1;
+
+	rc = MQTTConnect(&client, &data);
+	if (rc != SUCCESS) {
+		ESP_LOGE(TAG, "MQTTConnect: %d", rc);
+	}
+}
+
+void genvex_wifi_disconnect(void)
+{
+	MQTTDisconnect(&client);
+}
+
+/************************************************
+ * Local functions
+ ***********************************************/
+
+static void publish_sensors(uint32_t id)
+{
+	int rc;
+	char topic[128];
+	char payload[128];
+	MQTTMessage msg;
+	int payload_len;
+
+	/** MQTT Publish - send an MQTT publish packet and wait for all acks to complete for all QoSs
+	 *  @param client - the client object to use
+	 *  @param topic - the topic to publish to
+	 *  @param message - the message to send
+	 *  @return success code
+	 */
+	//int MQTTPublish(MQTTClient* client, const char*, MQTTMessage*);
+
+	if (id > (NUM_SENSORS - 1)) {
+		ESP_LOGE(TAG, "Wrong sensor ID: %d", id);
+		return;
+	}
+
+	// Setup message
+	msg.qos = 0;
+	msg.retained = 0;
+	msg.dup = 0;
+
+	// Temperature
+	payload_len = sprintf(payload, "%f", sensors[id].temperature);
+	msg.payloadlen = payload_len;
+	msg.payload = payload;
+
+	sprintf(topic, "genvex/sensor%d/temperature", id);
+	rc = MQTTPublish(&client, (const char*)topic, &msg);
+	if (rc != SUCCESS) {
+		ESP_LOGE(TAG, "Publish t: %d", rc);
+	}
+
+	// Pressure
+	payload_len = sprintf(payload, "%f", sensors[id].pressure);
+	msg.payloadlen = payload_len;
+	msg.payload = payload;
+
+	sprintf(topic, "genvex/sensor%d/pressure", id);
+	rc = MQTTPublish(&client, (const char*)topic, &msg);
+	if (rc != SUCCESS) {
+		ESP_LOGE(TAG, "Publish p: %d", rc);
+	}
+
+	// Humidity
+	payload_len = sprintf(payload, "%f", sensors[id].humidity);
+	msg.payloadlen = payload_len;
+	msg.payload = payload;
+
+	sprintf(topic, "genvex/sensor%d/humidity", id);
+	rc = MQTTPublish(&client, (const char*)topic, &msg);
+	if (rc != SUCCESS) {
+		ESP_LOGE(TAG, "Publish h: %d", rc);
+	}
 }
 
 static void process_uart(void *p)
@@ -82,15 +215,13 @@ static void process_uart(void *p)
 	}
 }
 
-void parse_string(uint8_t *buf)
+static void parse_string(uint8_t *buf)
 {
 	static enum state_t state = IDLE;
-	static int32_t current_id = 0;
-	static float current_temp = 0;
-	static float current_pres = 0;
-	static float current_humi = 0;
+	static int32_t current_id;
 	int index = 0;
 	char c;
+
 	// Run through buffer
 	while(buf[index] != 0)
 	{
@@ -110,7 +241,7 @@ void parse_string(uint8_t *buf)
 				break;
 			case TEMP:
 				// get Temperature
-				if((get_float(c, &current_temp)))
+				if((get_float(c, &(sensors[current_id].temperature))))
 				{
 					state = IDLE;
 				}
@@ -121,7 +252,7 @@ void parse_string(uint8_t *buf)
 				break;
 			case PRES:
 				// get Pressure
-				if((get_float(c, &current_pres)))
+				if((get_float(c, &(sensors[current_id].pressure))))
 				{
 					state = IDLE;
 				}
@@ -132,7 +263,7 @@ void parse_string(uint8_t *buf)
 				break;
 			case HUMI:
 				// get Humidity
-				if((get_float(c, &current_humi)))
+				if((get_float(c, &(sensors[current_id].humidity))))
 				{
 					state = IDLE;
 				}
@@ -161,22 +292,23 @@ void parse_string(uint8_t *buf)
 				else if(c == '\r')
 				{
 					// Send current values
-					ESP_LOGI(TAG, "ID: %d, t:%f h:%f p:%f", current_id, current_temp, current_humi, current_pres);
+					//ESP_LOGI(TAG, "ID: %d, t:%f h:%f p:%f", current_id, current_temp, current_humi, current_pres);
+
+					publish_sensors(current_id);
 					// reset current values
 					current_id = 0;
-					current_temp = 0;
-					current_pres = 0;
-					current_humi = 0;
 				}
 				index++;
 				break;
 		}
 	}
 }
+
 static uint8_t is_int(char c)
 {
 	return (c >= '0' && c <= '9') ? 1 : 0;
 }
+
 static uint8_t get_int(char c, int32_t* value)
 {
 	if(is_int(c))
