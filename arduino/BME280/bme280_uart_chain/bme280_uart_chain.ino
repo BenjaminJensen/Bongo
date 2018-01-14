@@ -37,7 +37,7 @@ void setup() {
                     Adafruit_BME280::SAMPLING_X1,  // humidity
                     Adafruit_BME280::FILTER_X16);
     // Delaytime nneds to be high to avoid self-heating
-    delayTime = 10000; // Overridden to 10.000 (10s)
+    delayTime = 30000; // Overridden to 30.000 (30s)
 }
 
 void loop() {
