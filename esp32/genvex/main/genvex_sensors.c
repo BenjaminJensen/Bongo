@@ -104,7 +104,7 @@ void genvex_wifi_connect(void)
 {
 	int rc;
 	NetworkInit(&network);
-	NetworkConnect(&network, "192.168.1.252", 1883);
+	NetworkConnect(&network, "192.168.1.210", 1883);
 
 	MQTTClientInit(&client, &network,
 		1000,            // command_timeout_ms
@@ -143,7 +143,7 @@ static void publish_sensors(uint32_t id)
 {
 	int rc;
 	char topic[128];
-	char payload[128];
+	char payload[256];
 	MQTTMessage msg;
 	int payload_len;
 
@@ -166,36 +166,17 @@ static void publish_sensors(uint32_t id)
 	msg.dup = 0;
 
 	// Temperature
-	payload_len = sprintf(payload, "%f", sensors[id].temperature);
+	payload_len = sprintf(payload, "{\"temperature\": %f, \"pressure\": %f, \"humidity\": %f}",
+			sensors[id].temperature,
+			sensors[id].pressure,
+			sensors[id].humidity);
 	msg.payloadlen = payload_len;
 	msg.payload = payload;
 
-	sprintf(topic, "genvex/sensor%d/temperature", id);
+	sprintf(topic, "genvex/sensor%d", id);
 	rc = MQTTPublish(&client, (const char*)topic, &msg);
 	if (rc != SUCCESS) {
 		ESP_LOGE(TAG, "Publish t: %d", rc);
-	}
-
-	// Pressure
-	payload_len = sprintf(payload, "%f", sensors[id].pressure);
-	msg.payloadlen = payload_len;
-	msg.payload = payload;
-
-	sprintf(topic, "genvex/sensor%d/pressure", id);
-	rc = MQTTPublish(&client, (const char*)topic, &msg);
-	if (rc != SUCCESS) {
-		ESP_LOGE(TAG, "Publish p: %d", rc);
-	}
-
-	// Humidity
-	payload_len = sprintf(payload, "%f", sensors[id].humidity);
-	msg.payloadlen = payload_len;
-	msg.payload = payload;
-
-	sprintf(topic, "genvex/sensor%d/humidity", id);
-	rc = MQTTPublish(&client, (const char*)topic, &msg);
-	if (rc != SUCCESS) {
-		ESP_LOGE(TAG, "Publish h: %d", rc);
 	}
 }
 
@@ -276,6 +257,7 @@ static void parse_string(uint8_t *buf)
 				if(c == 'i')
 				{
 					state = ID;
+					current_id = 0;
 				}
 				else if(c == 't')
 				{
@@ -303,7 +285,6 @@ static void parse_string(uint8_t *buf)
 
 					publish_sensors(current_id);
 					// reset current values
-					current_id = 0;
 				}
 				index++;
 				break;

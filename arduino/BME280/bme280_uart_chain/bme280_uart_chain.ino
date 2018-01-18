@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+#include <neotimer.h>
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
@@ -9,47 +10,59 @@
 #define ID_PIN_2 4
 
 Adafruit_BME280 bme; // I2C
+// Sample every 30.000ms (30s)
+#define SAMPLE_TIME 30000
+
+Neotimer mytimer = Neotimer(SAMPLE_TIME);
 
 unsigned long delayTime;
 int id;
 
 void setup() {
-    // Setup ID pins
-    pinMode(ID_PIN_0,INPUT_PULLUP);
-    pinMode(ID_PIN_1,INPUT_PULLUP);
-    pinMode(ID_PIN_2,INPUT_PULLUP);
-
-    id = getID();
-    Serial.begin(9600);
-    //Serial.print("BME280 node:");
-    //Serial.println(id);
-
-    Wire.begin();
-    if (! bme.begin(&Wire)) {
-        Serial.println("Could not find a valid BME280 sensor, check wiring!");
-        while (1);
-    }
-
-    // indoor navigation
-    bme.setSampling(Adafruit_BME280::MODE_FORCED,
-                    Adafruit_BME280::SAMPLING_X2,  // temperature
-                    Adafruit_BME280::SAMPLING_X16, // pressure
-                    Adafruit_BME280::SAMPLING_X1,  // humidity
-                    Adafruit_BME280::FILTER_X16);
-    // Delaytime nneds to be high to avoid self-heating
-    delayTime = 30000; // Overridden to 30.000 (30s)
+  // Setup ID pins
+  pinMode(ID_PIN_0,INPUT_PULLUP);
+  pinMode(ID_PIN_1,INPUT_PULLUP);
+  pinMode(ID_PIN_2,INPUT_PULLUP);
+  
+  id = getID();
+  Serial.begin(9600);
+  //Serial.print("BME280 node:");
+  //Serial.println(id);
+  
+  Wire.begin();
+  if (! bme.begin(&Wire)) {
+    Serial.println("Could not find a valid BME280 sensor, check wiring!");
+    while (1);
+  }
+  
+  // indoor navigation
+  bme.setSampling(Adafruit_BME280::MODE_FORCED,
+      Adafruit_BME280::SAMPLING_X2,  // temperature
+      Adafruit_BME280::SAMPLING_X16, // pressure
+      Adafruit_BME280::SAMPLING_X1,  // humidity
+      Adafruit_BME280::FILTER_X16);
+      
+  // Delaytime nneds to be high to avoid self-heating
+  
 }
 
 void loop() {
-    // make forced measurement
-    bme.takeForcedMeasurement(); // 
-    
-	if(checkComs())
-	{
-		sendValues();
+  static bool flag;
+  
+  // make forced measurement
+  bme.takeForcedMeasurement();  
+  if(mytimer.repeat(SAMPLE_TIME)){
+    flag = true;
+  }
+  
+	if(checkComs())	{
+    if(flag) {
+      flag = false;
+  		sendValues();
+  	}
 	}
-    delay(delayTime);
 }
+
 int getID()
 {
   int id;
@@ -68,6 +81,7 @@ bool checkComs()
 	
 	while(Serial.available())
 	{
+    idle = false;
     int ret = readline(Serial.read(),buffer, 128);
 		if(ret > 0)
 		{
@@ -77,10 +91,6 @@ bool checkComs()
    else if (ret == 0)
    {
     idle = true;
-   }
-   else
-   {
-    idle = false;
    }
 	}
 	return idle;
