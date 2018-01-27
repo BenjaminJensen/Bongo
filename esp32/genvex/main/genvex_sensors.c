@@ -20,7 +20,6 @@
 
 #include <esp_log.h>
 #include "driver/uart.h"
-#include "MQTTClient.h"
 
 /************************************************
  * Defines
@@ -104,7 +103,7 @@ void genvex_wifi_connect(void)
 {
 	int rc;
 	NetworkInit(&network);
-	NetworkConnect(&network, "192.168.1.210", 1883);
+	NetworkConnect(&network, "192.168.1.252", 1883);
 
 	MQTTClientInit(&client, &network,
 		1000,            // command_timeout_ms
@@ -135,6 +134,11 @@ void genvex_wifi_disconnect(void)
 	MQTTDisconnect(&client);
 }
 
+int sub(const char* topicFilter, messageHandler handler) {
+	int success;
+	success = MQTTSubscribe(&client, topicFilter, QOS0, handler);
+	return success;
+}
 /************************************************
  * Local functions
  ***********************************************/
@@ -185,6 +189,8 @@ static void process_uart(void *p)
 	uint8_t* data = (uint8_t*) malloc(BUF_SIZE);
 
 	while(1) {
+
+		MQTTYield(&client, 1000);
         // Read data from the UART
         int len = uart_read_bytes(UART_NUM_2, data, BUF_SIZE, 20 / portTICK_RATE_MS);
         if(len > 0)
