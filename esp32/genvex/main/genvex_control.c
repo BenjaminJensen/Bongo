@@ -164,7 +164,7 @@ static void set_speed_task(void *params) {
 			ESP_LOGE(TAG, "Sub: %d", errors);
 			vTaskDelay(1000 / portTICK_PERIOD_MS);
 		}
-	} while(errors != 0 && steps < 10);
+	} while(errors != 0);
 
 	while(true) {
 

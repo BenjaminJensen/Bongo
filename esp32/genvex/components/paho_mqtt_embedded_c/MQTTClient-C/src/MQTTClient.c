@@ -204,6 +204,7 @@ int keepalive(MQTTClient* c)
 
     if (TimerIsExpired(&c->ping_timer))
     {
+    	printf("Keep timeout");
         if (!c->ping_outstanding)
         {
             Timer timer;
@@ -288,6 +289,11 @@ int cycle(MQTTClient* c, Timer* timer)
 exit:
     if (rc == SUCCESS)
         rc = packet_type;
+    else if (c->isconnected) {
+    	c->isconnected = 0;
+    	printf("Cycle error; %d", rc);
+    }
+
     return rc;
 }
 

@@ -26,6 +26,10 @@
 #include "mbedtls/ssl.h"
 #include "sdkconfig.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+
 static char tag[] = "MQTTESP32";
 
 typedef struct {
@@ -58,6 +62,7 @@ typedef struct {
   }                                                            \
 }
 #endif
+
 
 void TimerInit(Timer* timer) {
 	timer->end_time = (struct timeval){0, 0};

@@ -15,7 +15,8 @@
 #include "freertos/task.h"
 
 #include "genvex_sensors.h"
-//void task_paho(void *ignore);
+#include "genvex_control.h"
+#include "paho_client.h"
 
 void initialize_wifi(void)
 {
@@ -38,8 +39,8 @@ void wifi_connect(void)
 {
     wifi_config_t cfg = {
         .sta = {
-            .ssid     = CONFIG_WIFI_SSID,
-            .password = CONFIG_WIFI_PASS,
+            .ssid     = "Boing",
+            .password = "benster101",
         },
     };
 
@@ -56,11 +57,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         wifi_connect();
         break;
     case SYSTEM_EVENT_STA_GOT_IP:
-    	genvex_wifi_connect();
+    	paho_wifi_connect("genvex");
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
         esp_wifi_connect();
-        genvex_wifi_disconnect();
+        paho_wifi_disconnect();
         break;
     default:
         break;
@@ -74,6 +75,6 @@ void app_main(void)
 
     initialize_wifi();
 
-	init_genvex_sensor();
-
+	//init_genvex_sensor();
+	init_genvex_control();
 }
