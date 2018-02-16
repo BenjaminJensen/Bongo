@@ -52,13 +52,13 @@ static sensor_t sensors[NUM_SENSORS] = {0};
 
 static const char* TAG = "Sensor Module";
 
-MQTTClient client;
 static TaskHandle_t task = NULL;
+/*
 Network network;
 
 static unsigned char sendBuf[1000];
 static unsigned char readBuf[1000];
-
+*/
 enum state_t {
     IDLE = 0,
 	ID,
@@ -99,64 +99,20 @@ void init_genvex_sensor()
 	xTaskCreate(process_uart,"SENSOR_TASK", 32*1024, NULL, 10, &task);
 }
 
-void genvex_wifi_connect(void)
-{
-	int rc;
-	NetworkInit(&network);
-	NetworkConnect(&network, "192.168.1.252", 1883);
-
-	MQTTClientInit(&client, &network,
-		1000,            // command_timeout_ms
-		sendBuf,         //sendbuf,
-		sizeof(sendBuf), //sendbuf_size,
-		readBuf,         //readbuf,
-		sizeof(readBuf)  //readbuf_size
-	);
-
-	MQTTString clientId = MQTTString_initializer;
-	clientId.cstring = "Genvex";
-
-	MQTTPacket_connectData data = MQTTPacket_connectData_initializer;
-	data.clientID          = clientId;
-	data.willFlag          = 0;
-	data.MQTTVersion       = 3;
-	data.keepAliveInterval = 0;
-	data.cleansession      = 1;
-
-	rc = MQTTConnect(&client, &data);
-	if (rc != SUCCESS) {
-		ESP_LOGE(TAG, "MQTTConnect: %d", rc);
-	}
-}
-
-void genvex_wifi_disconnect(void)
-{
-	MQTTDisconnect(&client);
-}
-
-int sub(const char* topicFilter, messageHandler handler) {
-	int success;
-	success = MQTTSubscribe(&client, topicFilter, QOS0, handler);
-	return success;
-}
 /************************************************
  * Local functions
  ***********************************************/
 
 static void publish_sensors(uint32_t id)
 {
+	/*
 	int rc;
 	char topic[128];
 	char payload[256];
 	MQTTMessage msg;
 	int payload_len;
 
-	/** MQTT Publish - send an MQTT publish packet and wait for all acks to complete for all QoSs
-	 *  @param client - the client object to use
-	 *  @param topic - the topic to publish to
-	 *  @param message - the message to send
-	 *  @return success code
-	 */
+
 	//int MQTTPublish(MQTTClient* client, const char*, MQTTMessage*);
 
 	if (id > (NUM_SENSORS - 1)) {
@@ -182,6 +138,7 @@ static void publish_sensors(uint32_t id)
 	if (rc != SUCCESS) {
 		ESP_LOGE(TAG, "Publish t: %d", rc);
 	}
+	*/
 }
 
 static void process_uart(void *p)
@@ -189,8 +146,6 @@ static void process_uart(void *p)
 	uint8_t* data = (uint8_t*) malloc(BUF_SIZE);
 
 	while(1) {
-
-		MQTTYield(&client, 1000);
         // Read data from the UART
         int len = uart_read_bytes(UART_NUM_2, data, BUF_SIZE, 20 / portTICK_RATE_MS);
         if(len > 0)
@@ -209,6 +164,7 @@ static void parse_string(uint8_t *buf)
 	int index = 0;
 	char c;
 
+	// TODO: re-write phony logic in function
 	// Run through buffer
 	while(buf[index] != 0)
 	{
@@ -289,6 +245,7 @@ static void parse_string(uint8_t *buf)
 							sensors[current_id].humidity,
 							sensors[current_id].pressure);
 
+					//TODO: Move this function OUT!
 					publish_sensors(current_id);
 					// reset current values
 				}

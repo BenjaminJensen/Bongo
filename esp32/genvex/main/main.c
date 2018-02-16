@@ -16,13 +16,21 @@
 
 #include "genvex_sensors.h"
 #include "genvex_control.h"
-#include "paho_client.h"
+#include "aws_client.h"
+
+/* FreeRTOS event group to signal when we are connected & ready to make a request */
+static EventGroupHandle_t wifi_event_group;
+
+/* The event group allows multiple bits for each event,
+   but we only care about one event - are we connected
+   to the AP with an IP? */
+const int CONNECTED_BIT = BIT0;
 
 void initialize_wifi(void)
 {
     // Disable wifi driver logging
     esp_log_level_set("wifi", ESP_LOG_NONE);
-
+    wifi_event_group = xEventGroupCreate();
 	nvs_flash_init();
     tcpip_adapter_init();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -57,11 +65,11 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
         wifi_connect();
         break;
     case SYSTEM_EVENT_STA_GOT_IP:
-    	paho_wifi_connect("genvex");
+        xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
         esp_wifi_connect();
-        paho_wifi_disconnect();
+        xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
         break;
     default:
         break;
@@ -77,4 +85,5 @@ void app_main(void)
 
 	//init_genvex_sensor();
 	init_genvex_control();
+    init_aws_client(wifi_event_group, CONNECTED_BIT);
 }

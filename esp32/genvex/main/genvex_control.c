@@ -11,12 +11,12 @@
 #include <stdint.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <freertos/Queue.h>
 #include <esp_system.h>
 #include <esp_log.h>
+#include "aws_client.h"
 
-#include "MQTTClient.h"
 #include "genvex_control.h"
-#include "paho_client.h"
 
 /************************************************
  * Defines
@@ -63,7 +63,7 @@ QueueHandle_t set_speed_queue;
 static void sample_task(void* parms);
 static void set_speed_task(void *params);
 static uint8_t sample_speed(void);
-static void handle_set_speed(MessageData* msg);
+//static void handle_set_speed(MessageData* msg);
 
 /************************************************
  * Exported functions
@@ -107,12 +107,30 @@ void init_genvex_control() {
 	xTaskCreate(set_speed_task, "SET_SPEED_TASK", 8*1024, NULL, 8, &set_speed_handle);
 }
 
-
-
 /************************************************
  * Local functions
  ***********************************************/
+void handle_set_speed(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
+                                    IoT_Publish_Message_Params *params, void *pData) {
+	static uint8_t speed = 0;
+		bool success;
+		speed = *((char*)params->payload) - '0';
 
+		ESP_LOGI(TAG, "handle speed: %d", speed);
+		// Clamp speed
+		if(speed > 3) {
+			speed = 3;
+		}
+
+		if(speed != cur_speed) {
+			success = xQueueSendToBack(set_speed_queue, (const void *)(&speed), 0);
+			if(!success) {
+				ESP_LOGE(TAG, "Unable to insert new speed into queue");
+			}
+		}
+    //ESP_LOGI(TAG, "%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char *)params->payload);
+}
+/*
 static void handle_set_speed(MessageData* msg) {
 	static uint8_t speed = 0;
 	bool success;
@@ -132,7 +150,7 @@ static void handle_set_speed(MessageData* msg) {
 	}
 
 }
-
+*/
 static uint8_t get_next_speed() {
 	return cur_speed == 3 ? 0 : cur_speed + 1;
 }
@@ -145,10 +163,11 @@ static void toggle_relay() {
 }
 
 static void set_speed_task(void *params) {
-	uint8_t new_speed;
+	uint8_t new_speed = 0;
 	uint8_t next_speed;
 	uint8_t steps;
 	uint8_t errors;
+	IoT_Error_t rc = FAILURE;
 	/**
 	 * speed > cur_speed
 	 * 		steps = speed - cur_speed
@@ -157,14 +176,16 @@ static void set_speed_task(void *params) {
 	 */
 
 	steps = 0;
+/*
 	do {
-		errors = paho_sub("genvex/speed", &handle_set_speed);
-		if(errors != 0) {
+		rc = aws_client_sub("genvex/speed", &handle_set_speed, QOS1);
+		if(rc != SUCCESS) {
 			steps++;
-			ESP_LOGE(TAG, "Sub: %d", errors);
+			ESP_LOGE(TAG, "Sub: %d", rc);
 			vTaskDelay(1000 / portTICK_PERIOD_MS);
 		}
-	} while(errors != 0);
+	} while(rc != SUCCESS);
+*/
 
 	while(true) {
 
@@ -172,7 +193,7 @@ static void set_speed_task(void *params) {
 		{
 			if( xQueueReceive( set_speed_queue, &( new_speed ), 200 / portTICK_PERIOD_MS ) )
 			{
-				if(new_speed > new_speed) {
+				if(new_speed > cur_speed) {
 					steps = new_speed - cur_speed;
 				} else {
 					steps = 4 - cur_speed - new_speed;
@@ -196,6 +217,12 @@ static void set_speed_task(void *params) {
 					ESP_LOGI(TAG, "New speed: %d with %d errors", cur_speed, errors);
 				}
 			}
+
+			vTaskDelay(100 / portTICK_RATE_MS);
+			/*
+			new_speed++;
+			if(new_speed > 3) new_speed = 0;
+			*/
 		}
 	}
 }
