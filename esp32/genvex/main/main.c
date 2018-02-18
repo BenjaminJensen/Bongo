@@ -82,8 +82,8 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_init(event_handler, NULL));
 
     initialize_wifi();
+    init_aws_client(wifi_event_group, CONNECTED_BIT);
 
 	//init_genvex_sensor();
 	init_genvex_control();
-    init_aws_client(wifi_event_group, CONNECTED_BIT);
 }

@@ -14,6 +14,7 @@
 #include <freertos/Queue.h>
 #include <esp_system.h>
 #include <esp_log.h>
+#include <string.h>
 #include "aws_client.h"
 
 #include "genvex_control.h"
@@ -113,30 +114,10 @@ void init_genvex_control() {
 void handle_set_speed(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNameLen,
                                     IoT_Publish_Message_Params *params, void *pData) {
 	static uint8_t speed = 0;
-		bool success;
-		speed = *((char*)params->payload) - '0';
-
-		ESP_LOGI(TAG, "handle speed: %d", speed);
-		// Clamp speed
-		if(speed > 3) {
-			speed = 3;
-		}
-
-		if(speed != cur_speed) {
-			success = xQueueSendToBack(set_speed_queue, (const void *)(&speed), 0);
-			if(!success) {
-				ESP_LOGE(TAG, "Unable to insert new speed into queue");
-			}
-		}
-    //ESP_LOGI(TAG, "%.*s\t%.*s", topicNameLen, topicName, (int) params->payloadLen, (char *)params->payload);
-}
-/*
-static void handle_set_speed(MessageData* msg) {
-	static uint8_t speed = 0;
 	bool success;
-	speed = *((char*)msg->message->payload) - '0';
+	speed = *((char*)params->payload) - '0';
 
-	ESP_LOGI(TAG, "handle speed: %s", (char*)msg->message->payload);
+	ESP_LOGI(TAG, "handle speed: %d", speed);
 	// Clamp speed
 	if(speed > 3) {
 		speed = 3;
@@ -148,9 +129,7 @@ static void handle_set_speed(MessageData* msg) {
 			ESP_LOGE(TAG, "Unable to insert new speed into queue");
 		}
 	}
-
 }
-*/
 static uint8_t get_next_speed() {
 	return cur_speed == 3 ? 0 : cur_speed + 1;
 }
@@ -167,7 +146,7 @@ static void set_speed_task(void *params) {
 	uint8_t next_speed;
 	uint8_t steps;
 	uint8_t errors;
-	IoT_Error_t rc = FAILURE;
+//	IoT_Error_t rc = FAILURE;
 	/**
 	 * speed > cur_speed
 	 * 		steps = speed - cur_speed
@@ -231,6 +210,20 @@ static void sample_task(void* parms) {
 	enum state_t state = UNKNOWN;
 	uint8_t last_speed = 0;
 	uint8_t speed = 0;
+	IoT_Publish_Message_Params paramsQOS1;
+	char cPayload[100];
+	const char *TOPIC = "genvex/speed";
+	const int TOPIC_LEN = strlen(TOPIC);
+	IoT_Error_t rc = FAILURE;
+	aws_publish_t* pubSlot;
+	paramsQOS1.qos = QOS1;
+	paramsQOS1.payload = (void *) cPayload;
+	paramsQOS1.isRetained = 0;
+
+	pubSlot = aws_reqister_publish_client(TOPIC, TOPIC_LEN, &paramsQOS1);
+	if(pubSlot == NULL){
+		ESP_LOGW(TAG, "Unable to register for publish");
+	}
 
     while (true) {
     	// Sample Speed
@@ -243,8 +236,15 @@ static void sample_task(void* parms) {
 					cur_speed = speed;
 
 					ESP_LOGI(TAG, "Speed updated: %d", cur_speed);
+					sprintf(cPayload, "%d", cur_speed);
 
 					// MQTT publish {'topic': 'genvex/speed', 'payload':cur_speed}
+					rc = aws_client_pub(pubSlot, &cPayload);
+					if(rc != SUCCESS) {
+						ESP_LOGW(TAG, "Speed updated publish error: %d", rc);
+					} else {
+						ESP_LOGI(TAG, "Speed updated publish : %d", cur_speed);
+					}
 				}
 				break;
 			case ON:

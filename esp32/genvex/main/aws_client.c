@@ -32,6 +32,7 @@
  ***********************************************/
 
 #define CONFIG_AWS_EXAMPLE_CLIENT_ID "Genvex"
+#define NUM_PUBS	8
 
 /************************************************
  * Locals
@@ -65,6 +66,11 @@ extern void handle_set_speed(AWS_IoT_Client *pClient, char *topicName, uint16_t 
 static EventGroupHandle_t *wifi_event_group;
 static EventBits_t CONNECTED_BIT;
 
+// Storage for async publishers
+static aws_publish_t pubs[NUM_PUBS];
+static EventGroupHandle_t publisherReady;
+static uint8_t numPublishClients;
+
 /************************************************
  * Local function declarations
  ***********************************************/
@@ -77,6 +83,12 @@ static void aws_iot_task(void *param);
 void init_aws_client(EventGroupHandle_t *weg, EventBits_t bit) {
 	wifi_event_group = weg;
 	CONNECTED_BIT = bit;
+
+	// Setup publish client interface
+	numPublishClients = 0;
+	publisherReady = xEventGroupCreate();
+
+	// Create AWS task
 	xTaskCreatePinnedToCore(&aws_iot_task, "aws_iot_task", 36*1024, NULL, 15, NULL, 1);
 }
 
@@ -85,6 +97,40 @@ IoT_Error_t aws_client_sub(const char *topic, pApplicationHandler_t handler, QoS
 	rc = aws_iot_mqtt_subscribe(&client, topic, strlen(topic), q, handler, NULL);
 	return rc;
 }
+
+aws_publish_t* aws_reqister_publish_client(const char *pTopicName, uint16_t topicNameLen, IoT_Publish_Message_Params *pParams) {
+	aws_publish_t* ret = NULL;
+
+	// There must be available slots
+	if(numPublishClients < (NUM_PUBS - 1)) {
+		ret = &(pubs[numPublishClients]);
+		ret->eventBit = 1 << numPublishClients;
+		ret->mutex = xSemaphoreCreateMutex();
+		ret->pTopicName = pTopicName;
+		ret->topicNameLen = topicNameLen;
+		ret->parms = pParams;
+
+		// Incrtement number of active client slots
+		numPublishClients++;
+	}
+
+	return ret;
+}
+
+IoT_Error_t aws_client_pub(aws_publish_t* pub, void* payload) {
+	IoT_Error_t rc = FAILURE;
+
+	if(xSemaphoreTake( pub->mutex, ( TickType_t ) 10 ) == pdTRUE) {
+		pub->parms->payloadLen = strlen(payload);
+		pub->parms->payload = payload;
+		// Signal slot is ready to publish
+		xEventGroupSetBits(publisherReady, pub->eventBit);
+		xSemaphoreGive( pub->mutex );
+		rc = SUCCESS;
+	}
+	return rc;
+}
+
 /************************************************
  * Local functions
  ***********************************************/
@@ -115,7 +161,7 @@ void iot_subscribe_callback_handler(AWS_IoT_Client *pClient, char *topicName, ui
 }
 static void aws_iot_task(void *param) {
     IoT_Error_t rc = FAILURE;
-
+    int i;
     IoT_Client_Init_Params mqttInitParams = iotClientInitParamsDefault;
     IoT_Client_Connect_Params connectParams = iotClientConnectParamsDefault;
 
@@ -184,11 +230,43 @@ static void aws_iot_task(void *param) {
     while((NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc)) {
 
         //Max time the yield function will wait for read messages
-        rc = aws_iot_mqtt_yield(&client, 100);
+        rc = aws_iot_mqtt_yield(&client, 200);
         if(NETWORK_ATTEMPTING_RECONNECT == rc) {
             // If the client is attempting to reconnect we will skip the rest of the loop.
             continue;
         }
+        ESP_LOGI(TAG, "Publishing : %x ", xEventGroupGetBits(publisherReady));
+
+        for(i = 0; i < numPublishClients;i++) {
+        	ESP_LOGI(TAG, "publishing : %d == %d", xEventGroupGetBits(publisherReady), pubs[i].eventBit);
+        	if(xEventGroupGetBits(publisherReady) & pubs[i].eventBit) {
+        		 /* See if we can obtain the semaphore.  If the semaphore is not
+				available wait 10 ticks to see if it becomes free. */
+				if( xSemaphoreTake( pubs[i].mutex, ( TickType_t ) 10 ) == pdTRUE )
+				{
+					/* We were able to obtain the semaphore and can now access the
+					shared resource. */
+
+					xEventGroupClearBits(publisherReady, pubs[i].eventBit);
+					rc = aws_iot_mqtt_publish(&client, pubs[i].pTopicName, pubs[i].topicNameLen, pubs[i].parms);
+					if(rc != SUCCESS) {
+						ESP_LOGE(TAG, "Error(%d) publishing : %s ", rc, pubs[i].pTopicName);
+					}
+
+					/* We have finished accessing the shared resource.  Release the
+					semaphore. */
+					xSemaphoreGive( pubs[i].mutex );
+				}
+				else
+				{
+					/* We could not obtain the semaphore and can therefore not access
+					the shared resource safely. */
+					ESP_LOGE(TAG, "Erroroptaning publishing mutex : %d ", pubs[i].eventBit);
+				}
+
+        	}
+        }
+
         vTaskDelay(500 / portTICK_RATE_MS);
     }
 
