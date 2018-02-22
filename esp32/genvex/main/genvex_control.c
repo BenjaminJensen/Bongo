@@ -212,6 +212,7 @@ static void sample_task(void* parms) {
 	uint8_t speed = 0;
 	IoT_Publish_Message_Params paramsQOS1;
 	char cPayload[100];
+	int len;
 	const char *TOPIC = "genvex/speed";
 	const int TOPIC_LEN = strlen(TOPIC);
 	IoT_Error_t rc = FAILURE;
@@ -236,10 +237,10 @@ static void sample_task(void* parms) {
 					cur_speed = speed;
 
 					ESP_LOGI(TAG, "Speed updated: %d", cur_speed);
-					sprintf(cPayload, "%d", cur_speed);
+					len = sprintf(cPayload, "%d", cur_speed);
 
 					// MQTT publish {'topic': 'genvex/speed', 'payload':cur_speed}
-					rc = aws_client_pub(pubSlot, &cPayload);
+					rc = aws_client_pub(pubSlot, &cPayload, len);
 					if(rc != SUCCESS) {
 						ESP_LOGW(TAG, "Speed updated publish error: %d", rc);
 					} else {

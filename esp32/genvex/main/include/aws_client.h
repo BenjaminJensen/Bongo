@@ -25,6 +25,6 @@ void init_aws_client(EventGroupHandle_t *weg, EventBits_t bit);
 
 IoT_Error_t aws_client_sub(const char *topic, pApplicationHandler_t handler, QoS q);
 
-IoT_Error_t aws_client_pub(aws_publish_t* pub, void* payload);
+IoT_Error_t aws_client_pub(aws_publish_t* pub, void* payload, int len);
 aws_publish_t* aws_reqister_publish_client(const char *pTopicName, uint16_t topicNameLen, IoT_Publish_Message_Params *pParams);
 #endif /* MAIN_INCLUDE_AWS_CLIENT_H_ */

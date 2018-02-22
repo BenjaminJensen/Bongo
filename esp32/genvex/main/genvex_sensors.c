@@ -20,6 +20,7 @@
 
 #include <esp_log.h>
 #include "driver/uart.h"
+#include "aws_client.h"
 
 /************************************************
  * Defines
@@ -46,7 +47,11 @@ typedef struct {
 	float temperature;
 	float pressure;
 	float humidity;
-
+	char cPayload[100];
+	IoT_Publish_Message_Params params;
+	char mqttTopic[100];
+	int mqttTopicLen;
+	aws_publish_t* pubSlot;
 } sensor_t;
 static sensor_t sensors[NUM_SENSORS] = {0};
 
@@ -96,6 +101,18 @@ void init_genvex_sensor()
 	//In this example we don't even use a buffer for sending data.
 	ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, BUF_SIZE * 2, 0, 0, NULL, 0));
 
+
+	// Register Publish Handles
+	for(int i = 0; i < 4;i++) {
+		sensors[i].mqttTopicLen = sprintf(sensors[i].mqttTopic, "genvex/sensor%d", i);
+		sensors[i].params.isRetained = 0;
+		sensors[i].params.qos = QOS1;
+		sensors[i].pubSlot = aws_reqister_publish_client(sensors[i].mqttTopic,sensors[i].mqttTopicLen, &(sensors[i].params));
+		if(sensors[i].pubSlot == NULL){
+			ESP_LOGW(TAG, "Unable to register for publish sensor%d", i);
+		}
+	}
+	// Start UART com task
 	xTaskCreate(process_uart,"SENSOR_TASK", 32*1024, NULL, 10, &task);
 }
 
@@ -105,40 +122,24 @@ void init_genvex_sensor()
 
 static void publish_sensors(uint32_t id)
 {
-	/*
 	int rc;
-	char topic[128];
-	char payload[256];
-	MQTTMessage msg;
-	int payload_len;
-
-
-	//int MQTTPublish(MQTTClient* client, const char*, MQTTMessage*);
-
+	int len;
 	if (id > (NUM_SENSORS - 1)) {
 		ESP_LOGE(TAG, "Wrong sensor ID: %d", id);
 		return;
 	}
 
-	// Setup message
-	msg.qos = 0;
-	msg.retained = 0;
-	msg.dup = 0;
-
-	// Temperature
-	payload_len = sprintf(payload, "{\"temperature\": %f, \"pressure\": %f, \"humidity\": %f}",
+	// Create JSON for payload
+	len = sprintf(sensors[id].cPayload, "{\"temperature\": %f, \"pressure\": %f, \"humidity\": %f}",
 			sensors[id].temperature,
 			sensors[id].pressure,
 			sensors[id].humidity);
-	msg.payloadlen = payload_len;
-	msg.payload = payload;
 
-	sprintf(topic, "genvex/sensor%d", id);
-	rc = MQTTPublish(&client, (const char*)topic, &msg);
+	rc = aws_client_pub(sensors[id].pubSlot, &(sensors[id].cPayload), len);
 	if (rc != SUCCESS) {
 		ESP_LOGE(TAG, "Publish t: %d", rc);
 	}
-	*/
+
 }
 
 static void process_uart(void *p)

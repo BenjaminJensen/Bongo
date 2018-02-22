@@ -21,7 +21,6 @@
 #include "esp_event_loop.h"
 #include "esp_log.h"
 
-
 #include "aws_iot_config.h"
 #include "aws_iot_log.h"
 #include "aws_iot_version.h"
@@ -70,7 +69,7 @@ static EventBits_t CONNECTED_BIT;
 static aws_publish_t pubs[NUM_PUBS];
 static EventGroupHandle_t publisherReady;
 static uint8_t numPublishClients;
-
+SemaphoreHandle_t pubMutex;
 /************************************************
  * Local function declarations
  ***********************************************/
@@ -87,6 +86,7 @@ void init_aws_client(EventGroupHandle_t *weg, EventBits_t bit) {
 	// Setup publish client interface
 	numPublishClients = 0;
 	publisherReady = xEventGroupCreate();
+	pubMutex = xSemaphoreCreateMutex();
 
 	// Create AWS task
 	xTaskCreatePinnedToCore(&aws_iot_task, "aws_iot_task", 36*1024, NULL, 15, NULL, 1);
@@ -100,28 +100,29 @@ IoT_Error_t aws_client_sub(const char *topic, pApplicationHandler_t handler, QoS
 
 aws_publish_t* aws_reqister_publish_client(const char *pTopicName, uint16_t topicNameLen, IoT_Publish_Message_Params *pParams) {
 	aws_publish_t* ret = NULL;
+	if(xSemaphoreTake( pubMutex, ( TickType_t ) 10 ) == pdTRUE) {
+		// There must be available slots
+		if(numPublishClients < (NUM_PUBS - 1)) {
+			ret = &(pubs[numPublishClients]);
+			ret->eventBit = 1 << numPublishClients;
+			ret->mutex = xSemaphoreCreateMutex();
+			ret->pTopicName = pTopicName;
+			ret->topicNameLen = topicNameLen;
+			ret->parms = pParams;
 
-	// There must be available slots
-	if(numPublishClients < (NUM_PUBS - 1)) {
-		ret = &(pubs[numPublishClients]);
-		ret->eventBit = 1 << numPublishClients;
-		ret->mutex = xSemaphoreCreateMutex();
-		ret->pTopicName = pTopicName;
-		ret->topicNameLen = topicNameLen;
-		ret->parms = pParams;
-
-		// Incrtement number of active client slots
-		numPublishClients++;
+			// Incrtement number of active client slots
+			numPublishClients++;
+		}
+		xSemaphoreGive( pubMutex );
 	}
-
 	return ret;
 }
 
-IoT_Error_t aws_client_pub(aws_publish_t* pub, void* payload) {
+IoT_Error_t aws_client_pub(aws_publish_t* pub, void* payload, int payloadLen) {
 	IoT_Error_t rc = FAILURE;
 
 	if(xSemaphoreTake( pub->mutex, ( TickType_t ) 10 ) == pdTRUE) {
-		pub->parms->payloadLen = strlen(payload);
+		pub->parms->payloadLen = payloadLen;
 		pub->parms->payload = payload;
 		// Signal slot is ready to publish
 		xEventGroupSetBits(publisherReady, pub->eventBit);
@@ -235,10 +236,8 @@ static void aws_iot_task(void *param) {
             // If the client is attempting to reconnect we will skip the rest of the loop.
             continue;
         }
-        ESP_LOGI(TAG, "Publishing : %x ", xEventGroupGetBits(publisherReady));
 
         for(i = 0; i < numPublishClients;i++) {
-        	ESP_LOGI(TAG, "publishing : %d == %d", xEventGroupGetBits(publisherReady), pubs[i].eventBit);
         	if(xEventGroupGetBits(publisherReady) & pubs[i].eventBit) {
         		 /* See if we can obtain the semaphore.  If the semaphore is not
 				available wait 10 ticks to see if it becomes free. */

@@ -84,6 +84,6 @@ void app_main(void)
     initialize_wifi();
     init_aws_client(wifi_event_group, CONNECTED_BIT);
 
-	//init_genvex_sensor();
+	init_genvex_sensor();
 	init_genvex_control();
 }
