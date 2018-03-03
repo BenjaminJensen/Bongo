@@ -39,7 +39,8 @@
 /**
  * @brief Default MQTT HOST URL is pulled from the aws_iot_config.h
  */
-char HostAddress[255] = "192.168.1.252";
+char HostAddress[255] = "192.168.1.140";
+//char HostAddress[255] = "192.168.1.252";
 
 /**
  * @brief Default MQTT port is pulled from the aws_iot_config.h
@@ -220,14 +221,16 @@ static void aws_iot_task(void *param) {
         ESP_LOGE(TAG, "Unable to set Auto Reconnect to true - %d", rc);
         abort();
     }
-    const char *TOPIC = "genvex/speed";
-        const int TOPIC_LEN = strlen(TOPIC);
+
+    const char *TOPIC = "genvex/set_speed";
+	const int TOPIC_LEN = strlen(TOPIC);
     ESP_LOGI(TAG, "Subscribing...");
-        rc = aws_iot_mqtt_subscribe(&client, TOPIC, TOPIC_LEN, QOS0, handle_set_speed, NULL);
-        if(SUCCESS != rc) {
-            ESP_LOGE(TAG, "Error subscribing : %d ", rc);
-            abort();
-        }
+	rc = aws_iot_mqtt_subscribe(&client, TOPIC, TOPIC_LEN, QOS0, handle_set_speed, NULL);
+	if(SUCCESS != rc) {
+		ESP_LOGE(TAG, "Error subscribing : %d ", rc);
+		abort();
+	}
+
     while((NETWORK_ATTEMPTING_RECONNECT == rc || NETWORK_RECONNECTED == rc || SUCCESS == rc)) {
 
         //Max time the yield function will wait for read messages

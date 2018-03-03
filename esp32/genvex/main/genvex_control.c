@@ -44,7 +44,6 @@
 
 // handler for FreeRTOS task
 static TaskHandle_t sample_handle = NULL;
-static TaskHandle_t set_speed_handle = NULL;
 static const char* TAG = "Control Module";
 static volatile uint8_t cur_speed;
 
@@ -62,9 +61,9 @@ QueueHandle_t set_speed_queue;
  * Local function declarations
  ***********************************************/
 static void sample_task(void* parms);
-static void set_speed_task(void *params);
-static uint8_t sample_speed(void);
-//static void handle_set_speed(MessageData* msg);
+static void set_speed();
+static uint8_t get_speed(void);
+static void sample_speed(aws_publish_t* pubSlot, char* cPayload);
 
 /************************************************
  * Exported functions
@@ -105,7 +104,7 @@ void init_genvex_control() {
 
 	// Create sampler task
 	xTaskCreate(sample_task, "SAMPLER_TASK", 8*1024, NULL, 10, &sample_handle);
-	xTaskCreate(set_speed_task, "SET_SPEED_TASK", 8*1024, NULL, 8, &set_speed_handle);
+	//xTaskCreate(set_speed_task, "SET_SPEED_TASK", 8*1024, NULL, 8, &set_speed_handle);
 }
 
 /************************************************
@@ -117,7 +116,7 @@ void handle_set_speed(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNa
 	bool success;
 	speed = *((char*)params->payload) - '0';
 
-	ESP_LOGI(TAG, "handle speed: %d", speed);
+	//ESP_LOGI(TAG, "handle speed: %d", speed);
 	// Clamp speed
 	if(speed > 3) {
 		speed = 3;
@@ -130,8 +129,8 @@ void handle_set_speed(AWS_IoT_Client *pClient, char *topicName, uint16_t topicNa
 		}
 	}
 }
-static uint8_t get_next_speed() {
-	return cur_speed == 3 ? 0 : cur_speed + 1;
+static uint8_t get_next_speed(uint8_t speed) {
+	return speed == 3 ? 0 : speed + 1;
 }
 
 static void toggle_relay() {
@@ -141,81 +140,54 @@ static void toggle_relay() {
 	vTaskDelay(100 / portTICK_PERIOD_MS);
 }
 
-static void set_speed_task(void *params) {
+static void set_speed() {
 	uint8_t new_speed = 0;
 	uint8_t next_speed;
-	uint8_t steps;
+	//uint8_t steps = 0;
 	uint8_t errors;
-//	IoT_Error_t rc = FAILURE;
-	/**
-	 * speed > cur_speed
-	 * 		steps = speed - cur_speed
-	 * 	else
-	 * 		steps = 4 - cur_speed - speed	 *
-	 */
+	uint8_t speed;
 
-	steps = 0;
-/*
-	do {
-		rc = aws_client_sub("genvex/speed", &handle_set_speed, QOS1);
-		if(rc != SUCCESS) {
-			steps++;
-			ESP_LOGE(TAG, "Sub: %d", rc);
-			vTaskDelay(1000 / portTICK_PERIOD_MS);
-		}
-	} while(rc != SUCCESS);
-*/
-
-	while(true) {
-
-		if( set_speed_queue != 0 )
+	if(set_speed_queue != 0)
+	{
+		// Check for new set points
+		if(xQueueReceive( set_speed_queue, &(new_speed), 0 ))
 		{
-			if( xQueueReceive( set_speed_queue, &( new_speed ), 200 / portTICK_PERIOD_MS ) )
-			{
-				if(new_speed > cur_speed) {
-					steps = new_speed - cur_speed;
-				} else {
-					steps = 4 - cur_speed - new_speed;
-				}
-
-				errors = 0;
-				next_speed = get_next_speed();
-				do {
-					toggle_relay();
-					if(cur_speed == next_speed) {
-						next_speed = get_next_speed();
-					} else {
-						errors++;
-					}
-				} while(cur_speed != new_speed && errors < MAX_ERRORS_SET_SPEED);
-
-				if(errors > MAX_ERRORS_SET_SPEED) {
-					ESP_LOGE(TAG, "Errors during set speed: %d", errors);
-				}
-				else {
-					ESP_LOGI(TAG, "New speed: %d with %d errors", cur_speed, errors);
-				}
-			}
-
-			vTaskDelay(100 / portTICK_RATE_MS);
 			/*
-			new_speed++;
-			if(new_speed > 3) new_speed = 0;
+			if(new_speed > cur_speed) {
+				steps = new_speed - cur_speed;
+			} else {
+				steps = 4 - cur_speed - new_speed;
+			}
 			*/
+			errors = 0;
+			next_speed = get_next_speed(get_speed());
+			do {
+				toggle_relay();
+				// Update speed
+				speed = get_speed();
+				// Test if new speed was achieved
+				if(speed == next_speed) {
+					next_speed = get_next_speed(speed);
+				} else {
+					errors++;
+				}
+			} while(speed != new_speed && errors < MAX_ERRORS_SET_SPEED);
+
+			if(errors > MAX_ERRORS_SET_SPEED) {
+				ESP_LOGE(TAG, "Errors during set speed: %d", errors);
+			}
+			else {
+				ESP_LOGI(TAG, "New speed: %d with %d errors", speed, errors);
+			}
 		}
 	}
 }
 
 static void sample_task(void* parms) {
-	enum state_t state = UNKNOWN;
-	uint8_t last_speed = 0;
-	uint8_t speed = 0;
 	IoT_Publish_Message_Params paramsQOS1;
 	char cPayload[100];
-	int len;
 	const char *TOPIC = "genvex/speed";
 	const int TOPIC_LEN = strlen(TOPIC);
-	IoT_Error_t rc = FAILURE;
 	aws_publish_t* pubSlot;
 	paramsQOS1.qos = QOS1;
 	paramsQOS1.payload = (void *) cPayload;
@@ -227,44 +199,37 @@ static void sample_task(void* parms) {
 	}
 
     while (true) {
-    	// Sample Speed
-		speed = sample_speed();
-
-		switch(state) {
-			case MAYBE_ON:
-				if(speed == last_speed) {
-					state = ON;
-					cur_speed = speed;
-
-					ESP_LOGI(TAG, "Speed updated: %d", cur_speed);
-					len = sprintf(cPayload, "%d", cur_speed);
-
-					// MQTT publish {'topic': 'genvex/speed', 'payload':cur_speed}
-					rc = aws_client_pub(pubSlot, &cPayload, len);
-					if(rc != SUCCESS) {
-						ESP_LOGW(TAG, "Speed updated publish error: %d", rc);
-					} else {
-						ESP_LOGI(TAG, "Speed updated publish : %d", cur_speed);
-					}
-				}
-				break;
-			case ON:
-				if(cur_speed != speed) {
-					state = MAYBE_ON;
-				}
-				break;
-			default:
-				state = MAYBE_ON;
-				break;
-		}
-
-		last_speed = speed;
-
+    	sample_speed(pubSlot, cPayload);
+    	set_speed();
         vTaskDelay(SAMPLE_INTERVAL / portTICK_PERIOD_MS);
     }
 }
 
-static uint8_t sample_speed() {
+static void sample_speed(aws_publish_t* pubSlot, char* cPayload) {
+	uint8_t speed = 0;
+	int len;
+	IoT_Error_t rc = FAILURE;
+
+	// Sample Speed
+	speed = get_speed();
+
+	if(speed != cur_speed) {
+		cur_speed = speed;
+
+		ESP_LOGI(TAG, "Speed updated: %d", cur_speed);
+		len = sprintf(cPayload, "%d", cur_speed);
+
+		// MQTT publish {'topic': 'genvex/speed', 'payload':cur_speed}
+		rc = aws_client_pub(pubSlot, cPayload, len);
+		if(rc != SUCCESS) {
+			ESP_LOGW(TAG, "Speed updated publish error: %d", rc);
+		} else {
+			ESP_LOGI(TAG, "Speed updated publish : %d", cur_speed);
+		}
+	}
+}
+
+static uint8_t get_speed() {
 	uint8_t speed = 0;
 
 	if(gpio_get_level(INPUT_SPEED_LED0) == 0) {
