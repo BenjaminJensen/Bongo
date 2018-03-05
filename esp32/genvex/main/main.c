@@ -16,6 +16,7 @@
 
 #include "genvex_sensors.h"
 #include "genvex_control.h"
+#include "temperature_controller.h"
 #include "aws_client.h"
 
 /* FreeRTOS event group to signal when we are connected & ready to make a request */
@@ -86,4 +87,6 @@ void app_main(void)
 
 	init_genvex_sensor();
 	init_genvex_control();
+
+	init_temperature_controller();
 }
