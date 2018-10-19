@@ -39,8 +39,8 @@
 /**
  * @brief Default MQTT HOST URL is pulled from the aws_iot_config.h
  */
-char HostAddress[255] = "192.168.1.140";
-//char HostAddress[255] = "192.168.1.252";
+//char HostAddress[255] = "192.168.1.140";
+char HostAddress[255] = "192.168.1.252";
 
 /**
  * @brief Default MQTT port is pulled from the aws_iot_config.h
