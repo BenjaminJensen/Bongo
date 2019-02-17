@@ -2,6 +2,7 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <neotimer.h>
+#include <arduinojson.h>
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 

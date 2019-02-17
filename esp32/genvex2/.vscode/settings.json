@@ -1,0 +1,16 @@
+{
+  "C_Cpp.intelliSenseEngineFallback": "Disabled",
+  "files.associations": {
+    "esp_wifi.h": "c",
+    "esp_log.h": "c",
+    "sockets.h": "c",
+    "opt.h": "c",
+    "debug.h": "c",
+    "arch.h": "c",
+    "cc.h": "c",
+    "sdkconfig.h": "c",
+    "mqtt_client.h": "c",
+    "genvex_control.h": "c",
+    "task.h": "c"
+  }
+}

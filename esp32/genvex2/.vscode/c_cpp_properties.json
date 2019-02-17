@@ -1,0 +1,54 @@
+{
+    "configurations": [
+        {
+            "name": "ESP32-Win",
+            "includePath": [
+                "${workspaceRoot}",
+                "C:/msys32/opt/xtensa-esp32-elf/lib/gcc/xtensa-esp32-elf/5.2.0/include",
+                "C:/msys32/opt/xtensa-esp32-elf/lib/gcc/xtensa-esp32-elf/5.2.0/include-fixed",
+                "C:/msys32/opt/xtensa-esp32-elf/xtensa-esp32-elf/include",
+                "C:/msys32/opt/xtensa-esp32-elf/xtensa-esp32-elf/sysroot/usr/include",
+                "C:/msys32/esp/esp-idf/components",
+                "C:/msys32/esp/esp-idf/components/esp32/include",
+                "C:/msys32/esp/esp-idf/components/nvs_flash/include",
+                "C:/msys32/esp/esp-idf/components/spi_flash/sim/stubs/freertos/include",
+                "C:/msys32/esp/esp-idf/components/driver/include",
+                "C:/msys32/esp/esp-idf/components/freertos/include",
+                "C:/msys32/esp/esp-idf/components/heap/include",
+                "C:/msys32/esp/esp-idf/components/lwip/lwip/src/include",
+                "C:/msys32/esp/esp-idf/components/log/include",
+                "C:/msys32/esp/esp-idf/components/mqtt/esp-mqtt/include",
+                "C:/msys32/esp/esp-idf/components/soc/include",
+                "C:/msys32/esp/esp-idf/components/spi_flash/sim/sdkconfig",
+                "C:/msys32/esp/esp-idf/components/tcpip_adapter/include",
+                "C:/msys32/esp/esp-idf/components/soc/esp32/include",
+                "C:/msys32/esp/esp-idf/components/spi_flash/include",
+                "C:/msys32/esp/esp-idf/components/coap/libcoap/examples/lwip",
+                "C:/msys32/esp/esp-idf/components/lwip/lwip/test/unit/esp",
+                "C:/msys32/esp/esp-idf/components/esp_event/include",
+                "C:/msys32/esp/esp-idf/components/esp-mqtt/include",
+                "C:/msys32/esp/esp-idf/components/fatfs/test_fatfs_host",
+                "C:/msys32/esp/esp-idf/components/lwip/include/lwip",
+                "C:/msys32/esp/esp-idf/components/lwip/include/lwip/port",
+                "${workspaceFolder}/components/esp-mqtt/include",
+                "${workspaceFolder}/main/include"
+            ],
+            "intelliSenseMode": "clang-x64",
+            "browse": {
+                "path": [
+                    "${workspaceRoot}",
+                    "C:/msys32/opt/xtensa-esp32-elf/lib/gcc/xtensa-esp32-elf/5.2.0/include",
+                    "C:/msys32/opt/xtensa-esp32-elf/lib/gcc/xtensa-esp32-elf/5.2.0/include-fixed",
+                    "C:/msys32/opt/xtensa-esp32-elf/xtensa-esp32-elf/include",
+                    "C:/msys32/opt/xtensa-esp32-elf/xtensa-esp32-elf/sysroot/usr/include",
+                    "C:/msys32/esp/esp-idf/components"
+                ],
+                "limitSymbolsToIncludedHeaders": true,
+                "databaseFilename": "${workspaceRoot}/.vscode/browse.vc.db"
+            },
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}
