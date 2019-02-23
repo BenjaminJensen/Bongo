@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
-#include <freertos/Queue.h>
+#include <freertos/queue.h>
 #include <esp_system.h>
 #include <esp_log.h>
 #include <string.h>
@@ -59,6 +59,7 @@ static void sample_task(void* parms);
 static void set_speed();
 static uint8_t get_speed(void);
 static bool sample_speed();
+static void handle_set_speed(const char* data, int data_len);
 
 /************************************************
  * Exported functions
@@ -97,12 +98,12 @@ void init_genvex_control() {
 /************************************************
  * Local functions
  ***********************************************/
-void handle_set_speed(void *pClient, char *topicName, uint16_t topicNameLen,
-                                    void *params, void *pData) {
+void handle_set_speed(const char* data, int data_len) {
 	static uint8_t speed = 0;
 	bool success;
-	// = *((char*)params->payload) - '0';
+	uint8_t tmp = *((char*)data) - '0'; // A little dirty
 
+	ESP_LOGI(TAG, "New speed: %d", tmp);
 	//ESP_LOGI(TAG, "handle speed: %d", speed);
 	// Clamp speed
 	if(speed > 3) {
@@ -177,9 +178,15 @@ static void set_speed() {
 
 static void sample_task(void* parms) {
 	const char *speed_topic = "genvex/speed";
-	
+	bool subscribed = false;
+
 	while (true) {
 		set_speed();
+
+		// Subscribe to set_speed if not done
+		if(subscribed == false) {
+			subscribed = mqttw_subscribe("genvex/set_speed", 0, &handle_set_speed);
+		}
 
 		if(sample_speed() == true) {
 			char data = '0';
