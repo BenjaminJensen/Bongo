@@ -58,9 +58,8 @@ bool mqttw_subscribe(const char* topic, int qos, mqttw_sub_handle_t handle) {
   if(xSemaphoreTake( subMutex, 100 / portTICK_PERIOD_MS ) == pdTRUE) {
     // Evaluate free subscription slots
     if(sub_table_cnt < (MAX_SUB - 1) ) {
-      sub_table_cnt++;
-
       if(esp_mqtt_client_subscribe(local_client, topic, qos) > -1) {
+        sub_table_cnt++;
         sub_table[sub_table_cnt].handle = handle;
         strcpy(sub_table[sub_table_cnt].topic, topic);
         ret = true;
@@ -71,7 +70,6 @@ bool mqttw_subscribe(const char* topic, int qos, mqttw_sub_handle_t handle) {
     } 
     else {
       ESP_LOGW(TAG, "No free sub slots, MAX: %d", sub_table_cnt);
-      return ret;
     }
     // Release Mutex
     xSemaphoreGive( subMutex );

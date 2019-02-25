@@ -101,22 +101,23 @@ void init_genvex_control() {
 void handle_set_speed(const char* data, int data_len) {
 	static uint8_t speed = 0;
 	bool success;
-	uint8_t tmp = *((char*)data) - '0'; // A little dirty
+	
+	speed = *((char*)data) - '0'; // A little dirty
 
-	ESP_LOGI(TAG, "New speed: %d", tmp);
+	ESP_LOGI(TAG, "New speed: %d", speed);
 	//ESP_LOGI(TAG, "handle speed: %d", speed);
 	// Clamp speed
+
 	if(speed > 3) {
 		speed = 3;
 	}
 
-	if(speed != cur_speed) {
-		success = xQueueSendToBack(set_speed_queue, (const void *)(&speed), 0);
-		if(!success) {
-			ESP_LOGE(TAG, "Unable to insert new speed into queue");
-		}
+	success = xQueueSendToBack(set_speed_queue, (const void *)(&speed), 0);
+	if(!success) {
+		ESP_LOGE(TAG, "Unable to insert new speed into queue");
 	}
 }
+
 static uint8_t get_next_speed(uint8_t speed) {
 	return speed == 3 ? 0 : speed + 1;
 }
@@ -135,7 +136,7 @@ static void set_speed() {
 	uint8_t errors;
 	uint8_t speed;
 
-	if(set_speed_queue != 0)
+	if(set_speed_queue != NULL)
 	{
 		// Check for new set points
 		if(xQueueReceive( set_speed_queue, &(new_speed), 0 ))
@@ -166,7 +167,7 @@ static void set_speed() {
 				}
 			} while(speed != new_speed && errors < MAX_ERRORS_SET_SPEED);
 
-			if(errors > MAX_ERRORS_SET_SPEED) {
+			if(errors >= MAX_ERRORS_SET_SPEED) {
 				ESP_LOGE(TAG, "Errors during set speed: %d", errors);
 			}
 			else {
@@ -181,13 +182,15 @@ static void sample_task(void* parms) {
 	bool subscribed = false;
 
 	while (true) {
-		set_speed();
-
 		// Subscribe to set_speed if not done
 		if(subscribed == false) {
 			subscribed = mqttw_subscribe("genvex/set_speed", 0, &handle_set_speed);
 		}
 
+		// Check if we need to change speed
+		set_speed();
+
+		// Sample speed and update over MQTT if it have changed since last 
 		if(sample_speed() == true) {
 			char data = '0';
 			bool success;
