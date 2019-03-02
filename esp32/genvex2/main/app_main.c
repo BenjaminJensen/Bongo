@@ -22,6 +22,7 @@
 #include "mqtt_client.h"
 #include "mqtt_wrapper.h"
 #include "genvex_control.h"
+#include "temperature_controller.h"
 
 static const char *TAG = "GENVEX_MAIN";
 
@@ -148,4 +149,5 @@ void app_main()
     ESP_LOGI(TAG, "Client: %d", (int)client);
     mqttw_init(client);
     init_genvex_control();
+    init_temperature_controller();
 }
