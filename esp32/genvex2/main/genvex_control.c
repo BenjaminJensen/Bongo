@@ -180,12 +180,15 @@ static void set_speed() {
 static void sample_task(void* parms) {
 	const char *speed_topic = "genvex/speed";
 	bool subscribed = false;
+	int loop_cnt = 0;
 
 	while (true) {
 		// Subscribe to set_speed if not done
-		if(subscribed == false) {
+		if(subscribed == false && loop_cnt > 20) {
 			subscribed = mqttw_subscribe("genvex/set_speed", 0, &handle_set_speed);
+			loop_cnt = 0;
 		}
+		loop_cnt++;
 
 		// Check if we need to change speed
 		set_speed();

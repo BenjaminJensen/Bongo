@@ -1,0 +1,7 @@
+{
+    "sketch": "bme680_esp32.ino",
+    "output": "../build",
+    "board": "esp32:esp32:node32s",
+    "configuration": "FlashFreq=80,UploadSpeed=921600",
+    "port": "COM3"
+}

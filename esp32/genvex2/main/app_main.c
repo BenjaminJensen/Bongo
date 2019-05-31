@@ -23,6 +23,7 @@
 #include "mqtt_wrapper.h"
 #include "genvex_control.h"
 #include "temperature_controller.h"
+#include "genvex_sensors.h"
 
 static const char *TAG = "GENVEX_MAIN";
 
@@ -86,6 +87,8 @@ static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event)
 {
     // your_context_t *context = event->context;
     switch (event->event_id) {
+        case MQTT_EVENT_BEFORE_CONNECT:
+            break;
         case MQTT_EVENT_CONNECTED:
 
             break;
@@ -150,4 +153,5 @@ void app_main()
     mqttw_init(client);
     init_genvex_control();
     init_temperature_controller();
+    init_genvex_sensor();
 }

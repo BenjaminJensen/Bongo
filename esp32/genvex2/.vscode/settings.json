@@ -1,5 +1,6 @@
 {
   "C_Cpp.intelliSenseEngineFallback": "Disabled",
+  "terminal.integrated.shell.windows": "C:\\msys32\\mingw32.exe",
   "files.associations": {
     "esp_wifi.h": "c",
     "esp_log.h": "c",
@@ -12,6 +13,8 @@
     "mqtt_client.h": "c",
     "genvex_control.h": "c",
     "task.h": "c",
-    "queue.h": "c"
+    "queue.h": "c",
+    "genvex_sensors.h": "c",
+    "uart.h": "c"
   }
 }

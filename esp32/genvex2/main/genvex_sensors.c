@@ -20,6 +20,7 @@
 
 #include <esp_log.h>
 #include "driver/uart.h"
+#include "mqtt_wrapper.h"
 
 /************************************************
  * Defines
@@ -29,13 +30,6 @@
 #define BUF_SIZE (128)
 
 #define NUM_SENSORS 4
-
-// Define the MQTT Broker's hostname, port, username and passphrase. To
-// configure these values, run 'make menuconfig'.
-#define MQTT_HOST CONFIG_MQTT_BROKER
-#define MQTT_PORT CONFIG_MQTT_PORT
-#define MQTT_USER CONFIG_MQTT_USER
-#define MQTT_PASS CONFIG_MQTT_PASS
 
 /************************************************
  * Locals
@@ -55,12 +49,7 @@ static sensor_t sensors[NUM_SENSORS] = {0};
 static const char* TAG = "Sensor Module";
 
 static TaskHandle_t task = NULL;
-/*
-Network network;
 
-static unsigned char sendBuf[1000];
-static unsigned char readBuf[1000];
-*/
 enum state_t {
     IDLE = 0,
 	ID,
@@ -77,6 +66,7 @@ static void parse_string(uint8_t *buf);
 static uint8_t get_int(char c, int32_t* value);
 static uint8_t get_float(char c, float* value);
 static uint8_t is_int(char c);
+static bool parse_jason(uint8_t *buf);
 
 /************************************************
  * Exported functions
@@ -94,14 +84,16 @@ void init_genvex_sensor()
 	//Configure UART1 parameters
 	ESP_ERROR_CHECK(uart_param_config(UART_NUM_2, &uart_config));
 	ESP_ERROR_CHECK(uart_set_pin(UART_NUM_2, ECHO_TEST_TXD, ECHO_TEST_RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
 	//Install UART driver (we don't need an event queue here)
 	//In this example we don't even use a buffer for sending data.
 	ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, BUF_SIZE * 2, 0, 0, NULL, 0));
 
+	// Setup sensor topics
+	for(int i = 0; i < NUM_SENSORS; i++) {
+		sensors[i].mqttTopicLen =	sprintf(sensors[i].mqttTopic, "genvex/sensor/%d",i);
+	}
 
-	// Register Publish Handles
-
-	
 	// Start UART com task
 	xTaskCreate(process_uart,"SENSOR_TASK", 32*1024, NULL, 10, &task);
 }
@@ -123,25 +115,38 @@ static void publish_sensors(uint32_t id)
 			sensors[id].temperature,
 			sensors[id].pressure,
 			sensors[id].humidity);
-	
-
-
+	mqttw_publish(sensors[id].mqttTopic, sensors[id].cPayload, 0);
 }
+
+/********************************
+* Processing the UART Task
+*********************************/
 
 static void process_uart(void *p)
 {
-	uint8_t* data = (uint8_t*) malloc(BUF_SIZE);
+	uint8_t data[BUF_SIZE];
+	int len;
 
 	while(1) {
-        // Read data from the UART
-        int len = uart_read_bytes(UART_NUM_2, data, BUF_SIZE, 20 / portTICK_RATE_MS);
-        if(len > 0)
-        {
-        	data[len] = 0;
+		// Read data from the UART
+		len = uart_read_bytes(UART_NUM_2, &data, BUF_SIZE, 20 / portTICK_RATE_MS);
+
+		if(len > 0)
+		{
+			data[len] = 0; // terminate string
 			parse_string(data);
 			uart_write_bytes(UART_NUM_2, (const char *) data, len);
-        }
+		}
 	}
+}
+
+/********************************
+* parse UART input
+*********************************/
+static bool parse_jason(uint8_t *buf) {
+	int bracket = 0;
+
+	return false;
 }
 
 static void parse_string(uint8_t *buf)

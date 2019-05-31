@@ -2,7 +2,6 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
 #include <neotimer.h>
-#include <arduinojson.h>
 
 #define SEALEVELPRESSURE_HPA (1013.25)
 
@@ -63,7 +62,7 @@ void loop() {
   	}
 	}
 }
-
+ 
 int getID()
 {
   int id;
@@ -128,7 +127,6 @@ int readline(int readch, char *buffer, int len)
 	// No end of line has been found, so return -1.
 	return -1;
 }
-
 void sendValues() {
     Serial.print("i");
     Serial.print(id);
@@ -147,4 +145,24 @@ void sendValues() {
 
     Serial.println();
 }
+/*
+void sendValues() {
+    Serial.print("{\"i\": ");
+    Serial.print(id);
+    
+    Serial.print(", \"t\": ");
+    Serial.print(bme.readTemperature());
+
+    Serial.print(", \"p\": ");
+    Serial.print(bme.readPressure() / 100.0F);
+
+    //Serial.print("");
+    //Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
+
+    Serial.print(", \"h\": ");
+    Serial.print(bme.readHumidity());
+
+    Serial.print("}");
+}
+*/
 
