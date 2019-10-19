@@ -1,0 +1,3 @@
+[submodule "avr/rotor_control/rotor_control/avr-ds18b20"]
+	path = avr/rotor_control/rotor_control/avr-ds18b20
+	url = https://github.com/Jacajack/avr-ds18b20

@@ -3,8 +3,12 @@
         {
             "name": "Win32",
             "includePath": [
-                "C:\\\\Users\\\\ben\\\\AppData\\\\Local\\\\Arduino15\\\\packages\\\\esp32\\\\tools\\\\**",
-                "C:\\\\Users\\\\ben\\\\AppData\\\\Local\\\\Arduino15\\\\packages\\\\esp32\\\\hardware\\\\esp32\\\\1.0.2\\\\**"
+                "C:\\\\\\\\Users\\\\\\\\ben\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Arduino15\\\\\\\\packages\\\\\\\\esp32\\\\\\\\tools\\\\\\\\**",
+                "C:\\\\\\\\Users\\\\\\\\ben\\\\\\\\AppData\\\\\\\\Local\\\\\\\\Arduino15\\\\\\\\packages\\\\\\\\esp32\\\\\\\\hardware\\\\\\\\esp32\\\\\\\\1.0.2\\\\\\\\**",
+                "C:/Users/ben/AppData/Local/Arduino15/packages/esp32/hardware/esp32/1.0.2/tools/sdk/include/freertos",
+                "C:/Users/ben/Documents/Arduino/libraries/BSEC-Arduino-library/src",
+                "C:\\Users\\ben\\AppData\\Local\\Arduino15\\packages\\esp32\\hardware\\esp32\\1.0.2\\**",
+                "C:\\Users\\ben\\AppData\\Local\\Arduino15\\packages\\esp32\\tools\\**"
             ],
             "forcedInclude": [],
             "intelliSenseMode": "msvc-x64"
