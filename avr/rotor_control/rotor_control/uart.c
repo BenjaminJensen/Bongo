@@ -1,21 +1,8 @@
-
-
 #include "include/uart.h"
 #include "include/ring_buffer.h"
 
-#define BAUD 9600
-#include <util/setbaud.h>
 #include <avr/interrupt.h>
 #include <stdbool.h>
-/**
- * \brief Set the desired baud rate value
- *
- * set the desired baudrate, the define is used by the util/setbaud.h to calculate the
- * register values.
- */
-
-//! set the baud rate tolerance to 2%
-#define BAUD_TOL 2
 
 //! define the UART data buffer ready interrupt vector
 #define UART0_DATA_EMPTY_IRQ USART_UDRE_vect
@@ -65,17 +52,10 @@ ISR(UART0_RX_IRQ)
 
 void uart_init(void)
 {
-#if defined UBRR0H
-	// get the values from the setbaud tool
-	UBRR0H = UBRRH_VALUE;
-	UBRR0L = UBRRL_VALUE;
-#else
-#error "Device is not supported by the driver"
-#endif
 
-#if USE_2X
-	UCSR0A |= (1 << U2X0);
-#endif
+	// Set baud to 55.556 = 56.000 (-1,0%)
+	UBRR0H = 0;
+	UBRR0L = 8;
 
 	// enable RX and TX and set interrupts on rx complete
 	UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);

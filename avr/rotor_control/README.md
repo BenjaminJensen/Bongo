@@ -1,5 +1,3 @@
-
-
 '' Compiler
 Atmel Studio v7.0.2389
 AVR/GNU C Compiler : 5.4.0
