@@ -9,8 +9,6 @@
 #include <avr/interrupt.h>
 #include <stdint.h>
 #include <util/delay.h>
-#include "BME280_driver/bme280.h"
-#include "BME280_driver/bme280_defs.h"
 #include "include/com.h"
 #include "include/bme280_wrapper.h"
 #include "include/timer.h"
@@ -69,9 +67,6 @@ void test_motor() {
 }
 */
 
-#define PROFILE_HIGH (PORTD |= (1 << DDD6))
-#define PROFILE_LOW (PORTD &= ~(1 << DDD6))
-
 /*
 * Main
 */
@@ -79,7 +74,7 @@ int main(void)
 {
 	// PB1 as output
 	DDRB = (1 << DDB1);
-	DDRD = (1 << DDD6);
+	//DDRD = (1 << DDD6);
 	
 	setup_timer();
 	setup_pwm();

@@ -37,7 +37,12 @@
 #define UART_H_INCLUDED
 
 #include <stdint.h>
+
 void uart_init(void);
 void uart_putchar(uint8_t data);
+
+uint8_t uart_char_waiting(void);
+
+uint8_t uart_getchar(void);
 
 #endif /* UART_H_INCLUDED */

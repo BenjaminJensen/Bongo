@@ -4,3 +4,7 @@
 [submodule "avr/rotor_control/rotor_control/BME280_driver"]
 	path = avr/rotor_control/rotor_control/BME280_driver
 	url = https://github.com/BoschSensortec/BME280_driver
+
+[submodule "esp32/genvex_rotor/main/BME280_driver"]
+	path = esp32/genvex_rotor/main/BME280_driver
+	url = https://github.com/BoschSensortec/BME280_driver

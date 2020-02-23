@@ -1,5 +1,8 @@
 import serial
-ser = serial.Serial('COM4', 56000)
+import sys
+import time
+
+ser = serial.Serial(port='COM4', baudrate=56000, timeout=1)
 ser.flushInput()
 
 def ds18b20_to_float(value):
@@ -26,20 +29,33 @@ def get_ds18b18_str(value):
 
 print("CTRL + C to stop program!")
 state = 0
+
 while True:
     try:
+        time.sleep( 0.5 )
+        # slaveId = 10, command = 0
+        ser.write(b'\xaa\x00\xff\xa0\x00')
         if state == 0:
             byte = ser.read()
             if byte == b'\xaa':
                 state = 1
+            else:
+                state = 0
+                print('Error 1nd byte: {}'.format(byte))
         if state == 1:
             byte = ser.read()
             if byte == b'\x00':
                 state = 2
+            else:
+                state = 0
+                print('Error 2nd byte: {}'.format(byte))
         if state == 2:
             byte = ser.read()
             if byte == b'\xff':
                 state = 3
+            else:
+                state = 0
+                print('Error 3nd byte: {}'.format(byte))
         if state == 3:
             # Read full package
             ser_bytes = ser.read(17)
@@ -58,11 +74,6 @@ while True:
                 .format(id, temp, pres, humi, mtemp, mtemp_raw, speed, setpoint)
                 )
             state = 0
-
     except KeyboardInterrupt:
         print('interrupted!')
-        break
-    except:
-        e = sys.exc_info()[0]
-        print(e)
         break

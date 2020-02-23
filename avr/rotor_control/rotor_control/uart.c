@@ -40,6 +40,12 @@ ISR(UART0_DATA_EMPTY_IRQ)
 	}
 }
 
+
+ISR(USART_TX_vect) {
+	// Disable RS485 transmitter
+	PORTD &= ~(1 << DDD2);
+}
+
 /**
  * \brief Data RX interrupt handler
  *
@@ -47,18 +53,27 @@ ISR(UART0_DATA_EMPTY_IRQ)
  */
 ISR(UART0_RX_IRQ)
 {
+	/*
+	// Loop-back
+	uint8_t data;
+	data = UDR0;
+	ring_buffer_put(&ring_buffer_in, data);
+	uart_putchar(data);
+	*/
 	ring_buffer_put(&ring_buffer_in, UDR0);
 }
 
 void uart_init(void)
 {
-
+	DDRD = (1 << DDD2);
+	PORTD &= ~(1 << DDD2);
+	
 	// Set baud to 55.556 = 56.000 (-1,0%)
 	UBRR0H = 0;
 	UBRR0L = 8;
 
 	// enable RX and TX and set interrupts on rx complete
-	UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
+	UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0) | (1 << TXCIE0);
 
 	// 8-bit, 1 stop bit, no parity, asynchronous UART
 	UCSR0C = (1 << UCSZ01) | (1 << UCSZ00) | (0 << USBS0) |
@@ -81,9 +96,12 @@ inline void uart_putchar(uint8_t data)
 	// Disable interrupts to get exclusive access to ring_buffer_out.
 	cli();
 	if (ring_buffer_is_empty(&ring_buffer_out)) {
+		// Enable RS485 transmitter
+		PORTD |= (1 << DDD2);
 		// First data in buffer, enable data ready interrupt
 		UCSR0B |=  (1 << UDRIE0);
 	}
+	
 	// Put data in buffer
 	ring_buffer_put(&ring_buffer_out, data);
 
@@ -96,7 +114,7 @@ inline void uart_putchar(uint8_t data)
  *
  * \retval Next data byte in receive buffer
  */
-static inline uint8_t uart_getchar(void)
+uint8_t uart_getchar(void)
 {
 	return ring_buffer_get(&ring_buffer_in);
 }
@@ -108,7 +126,7 @@ static inline uint8_t uart_getchar(void)
  * \retval true if data is waiting
  * \retval false if no data is waiting
  */
-static inline bool uart_char_waiting(void)
+uint8_t uart_char_waiting(void)
 {
 	return !ring_buffer_is_empty(&ring_buffer_in);
 }
