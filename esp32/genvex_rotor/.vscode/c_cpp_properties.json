@@ -6,8 +6,8 @@
             "cppStandard": "c++17",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${config:idf.espIdfPath}/components/**",
-                "C:/Users/ben/.espressif/tools/xtensa-esp32-elf/1.22.0-80-g6c4433a5-5.2.0/xtensa-esp32-elf/**",
+                "D:/git/Bongo/esp32/genvex_rotor/components/**",
+                "C:/Users/ben/.espressif/tools/xtensa-esp32-elf/1.22.0-80-g6c4433a5-5.2.0/**",
                 "C:/esp-idf/esp-idf/esp-idf/components/**"
             ],
             "browse": {

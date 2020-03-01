@@ -16,7 +16,9 @@
         "stdlib.h": "c",
         "uart_struct.h": "c",
         "freertos.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "motor.h": "c",
+        "queue.h": "c"
     },
     "cmake.configureOnOpen": false,
     "C_Cpp.errorSquiggles": "Enabled"

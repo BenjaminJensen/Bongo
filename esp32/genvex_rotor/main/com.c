@@ -6,6 +6,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "motor.h"
+#include "bme280_wrapper.h"
 
 #define SLAVE_ID 10
 
@@ -45,8 +47,6 @@ static struct  {
 	int16_t mtemp;
 } status_data;
 
-SemaphoreHandle_t sem_tx_data;
-
 static void com_eval_cmd(uint8_t cmd, uint8_t data);
 static void com_task();
 static void send_status();
@@ -81,41 +81,14 @@ void com_init() {
 
     // Set RS485 half duplex mode
     uart_set_mode(UART_PORT, UART_MODE_RS485_HALF_DUPLEX);
-
-    // Create mutex for shared data
-    sem_tx_data = xSemaphoreCreateMutex();
-
-    if( sem_tx_data == NULL ) {
-        ESP_LOGE(TAG, "Unable to create UART Mutex!");
-    }
     
     xTaskCreate(com_task, "com_task", COM_TASK_STACK_SIZE, NULL, COM_TASK_PRIO, NULL);
 }
 
 void com_set_bme280_data(int32_t temp, uint32_t pres, uint32_t humi) {
-    if( sem_tx_data != NULL ) {
-        if( xSemaphoreTake( sem_tx_data, ( TickType_t ) 10 ) == pdTRUE ) {
-            status_data.temp = temp;
-            status_data.pres = pres;
-            status_data.humi = humi;
-            xSemaphoreGive( sem_tx_data );
-        }
-        else {
-            ESP_LOGW(TAG, "Unable to take data Mutex in \"com_set_bme280_data\"");
-        }
-    }
-}
-
-void com_set_ds18b20_data(int16_t temp) {
-    if( sem_tx_data != NULL ) {
-        if( xSemaphoreTake( sem_tx_data, ( TickType_t ) 10 ) == pdTRUE ) {
-            status_data.mtemp = temp;
-            xSemaphoreGive(sem_tx_data);
-        }
-        else {
-            ESP_LOGW(TAG, "Unable to take data Mutex in \"com_set_ds18b20_data\"");
-        }
-    }
+    status_data.temp = temp;
+    status_data.pres = pres;
+    status_data.humi = humi;
 }
 
 void com_task() {
@@ -128,7 +101,7 @@ void com_task() {
             vTaskDelay( 10 / portTICK_PERIOD_MS);
         }
         else {
-            ESP_LOGI(TAG, "UART data received(%d).\r\n", len);
+            ESP_LOGD(TAG, "UART data received(%d).\r\n", len);
             for(i = 0; i < len; i++) {
                 com_parse_com(data[i]);
             }
@@ -191,6 +164,10 @@ static void com_eval_cmd(uint8_t cmd, uint8_t data) {
 		case 0:
 			send_status();
 			break;
+        case 1:
+            ESP_LOGI(TAG, "Change speed to (%d)", data);
+            motor_set_speed(data);
+            break;
 		default:
             ESP_LOGW(TAG, "Unknown command(%d) in \"com_eval_cmd\"!", cmd);
 			break;
@@ -208,30 +185,30 @@ void send_status() {
 	uint8_t i = 0; // Transmission buffer index
 	uint8_t k;
 	uint8_t tmp;
+    struct bme280_data bme280;
 	char buf[21];
-    
+    // Test data
+	id = 10;
+
     temp = 0;
     pres = 0;
     humi = 0;
     mtemp = 0;
-
-	if( sem_tx_data != NULL ) {
-        if( xSemaphoreTake( sem_tx_data, ( TickType_t ) 10 ) == pdTRUE ) {    
-            temp = status_data.temp;
-            pres = status_data.pres;
-            humi = status_data.humi;
-            mtemp = status_data.mtemp;
-            xSemaphoreGive(sem_tx_data);
-        }
-        else {
-            ESP_LOGW(TAG, "Unable to take data Mutex in \"send_status\"");
-        }
-    }
+    
+    bme280_get_data(&bme280);
+    temp = bme280.temperature;
+    pres = bme280.pressure;
+    humi = bme280.humidity;
+    
 	
-	// Test data
-	id = 10;
-	speed = 80; // 80%
-	setpoint = 90; // 90%
+	motor_data_t motor;
+    speed = 0; 
+	setpoint = 0; 
+    motor_get_data(&motor);
+    speed = motor.speed;
+    setpoint = motor.set_point;
+    mtemp = motor.temperature;
+	
 	
 	buf[0] = 0xAA;
 	buf[1] = 0x00;
@@ -268,5 +245,5 @@ void send_status() {
 	// Current setpoint
 	buf[i++] = setpoint;
 	
-    uart_write_bytes(UART_PORT, buf, 19);
+    uart_write_bytes(UART_PORT, buf, 20);
 }

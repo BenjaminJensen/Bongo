@@ -1,6 +1,7 @@
 import serial
 import sys
 import time
+import msvcrt
 
 ser = serial.Serial(port='COM4', baudrate=56000, timeout=1)
 ser.flushInput()
@@ -27,12 +28,26 @@ def get_ds18b18_str(value):
         val_str = 'ERROR {}'.format(value & b'\x00ff')
     return val_str
 
+def handle_key():
+    key = int.from_bytes(msvcrt.getch(),byteorder='big')
+    print('Key: {}'.format(key))
+    time.sleep( 0.2 )
+    key -= 48
+    if key >= 0 and key < 4:
+        # slaveId = 10, command = 0
+        ser.write(b'\xaa\x00\xff\xa1' + bytes([key]))
+    else:
+        print('{} is not a command'.format(key))
+
 print("CTRL + C to stop program!")
 state = 0
 
 while True:
     try:
-        time.sleep( 0.5 )
+        if msvcrt.kbhit():
+            handle_key()
+
+        time.sleep( 0.2 )
         # slaveId = 10, command = 0
         ser.write(b'\xaa\x00\xff\xa0\x00')
         if state == 0:

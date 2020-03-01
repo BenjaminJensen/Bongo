@@ -5,7 +5,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
-#include "com.h"
 
 /************************************
 * SPI
@@ -29,6 +28,7 @@ static const char *TAG = "BME280";
 
 struct bme280_dev dev;
 struct bme280_data comp_data;
+SemaphoreHandle_t sem_bme280_data;
 
 /************************************
 * SPI
@@ -44,6 +44,22 @@ void setup_bme280_spi();
 /************************************
 * BME280 Public
 ************************************/
+void bme280_get_data(struct bme280_data* data) {
+	if( sem_bme280_data != NULL ) {
+		if( xSemaphoreTake( sem_bme280_data, ( TickType_t ) 10 ) == pdTRUE ) {
+			data->temperature = comp_data.temperature;
+			data->humidity = comp_data.humidity;
+			data->pressure = comp_data.pressure;
+			xSemaphoreGive(sem_bme280_data);
+		}
+		else {
+			ESP_LOGW(TAG, "Unable to take BME280 data Mutex in \"bme280_get_data\"");
+		}
+	}
+	else {
+		ESP_LOGW(TAG, "BME280 data Mutex is NULL \"bme280_get_data\"");
+	}
+}
 
 int8_t setup_bme280() {
 	
@@ -72,7 +88,14 @@ int8_t setup_bme280() {
 	
 	rslt = bme280_set_sensor_settings(settings_sel, &dev);
 	
-	// TODO: Start BME280 task
+	// Create mutex for shared data
+    sem_bme280_data = xSemaphoreCreateMutex();
+
+    if( sem_bme280_data == NULL ) {
+        ESP_LOGE(TAG, "Unable to create BME280 data Mutex!");
+    }
+
+	// Start BME280 task
 	if(rslt == 0) {
 		xTaskCreate(bme280_task, "com_task", BME280_TASK_STACK_SIZE, NULL, BME280_TASK_PRIO, NULL);
 	}
@@ -99,8 +122,24 @@ void bme280_task() {
 			case 1:// 2.4 mS
 				// Wait for conversion
 				vTaskDelay( 100 / portTICK_PERIOD_MS);
-				rslt = bme280_get_sensor_data(BME280_ALL, &comp_data, &dev);
-				com_set_bme280_data(comp_data.temperature, comp_data.pressure, comp_data.humidity);
+				struct bme280_data tmp_data;
+				rslt = bme280_get_sensor_data(BME280_ALL, &tmp_data, &dev);
+
+				if( sem_bme280_data != NULL ) {
+					if( xSemaphoreTake( sem_bme280_data, ( TickType_t ) 10 ) == pdTRUE ) {
+						comp_data.temperature = tmp_data.temperature;
+						comp_data.humidity = tmp_data.humidity;
+						comp_data.pressure = tmp_data.pressure;
+						xSemaphoreGive(sem_bme280_data);
+					}
+					else {
+						ESP_LOGW(TAG, "Unable to take BME280 data Mutex in \"bme280_task\"");
+					}
+				}
+				else {
+					ESP_LOGW(TAG, "BME280 data Mutex is NULL \"bme280_task\"");
+				}
+
 				float temp = comp_data.temperature / 100.0f;
             	float pres = comp_data.pressure / 1000.0f;
             	float humi = comp_data.humidity / 1024.0f;
