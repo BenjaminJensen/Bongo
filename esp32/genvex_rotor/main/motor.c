@@ -14,6 +14,8 @@
 #include "freertos/task.h"
 #include "driver/mcpwm.h"
 
+#include "driver/pcnt.h"
+
 static const char *TAG = "MOTOR"; 
 
 /************************************
@@ -29,6 +31,17 @@ static const char *TAG = "MOTOR";
 static uint8_t set_speed;
 static uint8_t cur_speed = 0;
 
+/************************************
+* Pulse Counting
+************************************/
+#define PCNT_UNIT0           PCNT_UNIT_0
+#define PCNT_UNIT1           PCNT_UNIT_1
+
+#define PCNT_INPUT_SIG0_IO  2  // Pulse Input GPIO
+#define PCNT_INPUT_SIG1_IO  4  // Pulse Input GPIO
+
+static void setup_pcnt(void);
+static void pcnt_task(void* data);
 /************************************
 * DS18B20
 ************************************/
@@ -70,6 +83,9 @@ void motor_init() {
     if( sem_motor_data == NULL ) {
         ESP_LOGE(TAG, "Unable to create motor data Mutex!");
     }
+
+    // Set up pulse counters for speed measurement
+    setup_pcnt();
 
     // Setup DS18B20
     setup_ds18b20();
@@ -163,6 +179,119 @@ void motor_set_speed(uint8_t speed) {
 }
 
 /************************************
+* Private Funtions - Speed monitoring
+************************************/
+
+static void setup_pcnt(void) {
+    // Prepare configuration for the PCNT unit
+    pcnt_config_t pcnt_config0 = {
+        // Set PCNT input signal and control GPIOs
+        .pulse_gpio_num = PCNT_INPUT_SIG0_IO,
+        .ctrl_gpio_num = -1,
+        .channel = PCNT_CHANNEL_0,
+        .unit = PCNT_UNIT0,
+        // What to do on the positive / negative edge of pulse input?
+        .pos_mode = PCNT_COUNT_INC,   // Count up on the positive edge
+        .neg_mode = PCNT_COUNT_DIS,   // Keep the counter value on the negative edge
+        // What to do when control input is low or high?
+        .lctrl_mode = PCNT_MODE_KEEP, // Reverse counting direction if low
+        .hctrl_mode = PCNT_MODE_KEEP,    // Keep the primary counter mode if high
+        // Set the maximum and minimum limit values to watch
+        .counter_h_lim = 0,
+        .counter_l_lim = 0,
+    };
+    // Initialize PCNT unit 
+    pcnt_unit_config(&pcnt_config0);
+
+    // Initialize PCNT's counter
+    pcnt_counter_pause(PCNT_UNIT0);
+    pcnt_counter_clear(PCNT_UNIT0);
+
+    // Everything is set up, now go to counting
+    pcnt_counter_resume(PCNT_UNIT0);
+
+    // Prepare configuration for the PCNT unit
+    pcnt_config_t pcnt_config1 = {
+        // Set PCNT input signal and control GPIOs
+        .pulse_gpio_num = PCNT_INPUT_SIG1_IO,
+        .ctrl_gpio_num = -1,
+        .channel = PCNT_CHANNEL_0,
+        .unit = PCNT_UNIT1,
+        // What to do on the positive / negative edge of pulse input?
+        .pos_mode = PCNT_COUNT_INC,   // Count up on the positive edge
+        .neg_mode = PCNT_COUNT_DIS,   // Keep the counter value on the negative edge
+        // What to do when control input is low or high?
+        .lctrl_mode = PCNT_MODE_KEEP, // Reverse counting direction if low
+        .hctrl_mode = PCNT_MODE_KEEP,    // Keep the primary counter mode if high
+        // Set the maximum and minimum limit values to watch
+        .counter_h_lim = 0,
+        .counter_l_lim = 0,
+    };
+    // Initialize PCNT unit 
+    pcnt_unit_config(&pcnt_config1);
+
+    // Initialize PCNT's counter
+    pcnt_counter_pause(PCNT_UNIT1);
+    pcnt_counter_clear(PCNT_UNIT1);
+
+    // Everything is set up, now go to counting
+    pcnt_counter_resume(PCNT_UNIT1);
+    xTaskCreate(pcnt_task, "pcnt_task", SPEED_TASK_STACK_SIZE, NULL, SPEED_TASK_PRIO, NULL);
+}
+
+static void pcnt_task(void* data) {
+    int16_t count = 0;
+    float rpm;
+    float sampling_period_ms = 5000.0f;
+
+    float filter0[12] = {0};
+    int filter_index0 = 0;
+    
+    float filter1[12] = {0};
+    int filter_index1 = 0;
+
+    while(1) {
+        // Unit 0
+        pcnt_get_counter_value(PCNT_UNIT0, &count);
+        pcnt_counter_clear(PCNT_UNIT0);
+        float tmp = count;
+        tmp = tmp / 4.0f;
+        rpm = (float)(60.0f*1000.0f/(float)sampling_period_ms) * tmp;
+
+        filter0[filter_index0++] = rpm;
+        if(filter_index0 >= 12)
+            filter_index0 = 0;
+        float avg_rpm = 0;
+        for(int i = 0; i < 12; i++)
+            avg_rpm += filter0[i];
+
+        avg_rpm /= 12;
+
+        printf("Speed0 %.2f RPM (%.2f avg), cnt: %d\n", rpm, avg_rpm, count);
+
+        // Unit 1
+        pcnt_get_counter_value(PCNT_UNIT1, &count);
+        pcnt_counter_clear(PCNT_UNIT1);
+        tmp = count;
+        tmp = tmp / 4.0f;
+        rpm = (float)(60.0f*1000.0f/(float)sampling_period_ms) * tmp;
+
+        filter1[filter_index1++] = rpm;
+        if(filter_index1 >= 12)
+            filter_index1 = 0;
+        avg_rpm = 0;
+        for(int i = 0; i < 12; i++)
+            avg_rpm += filter1[i];
+
+        avg_rpm /= 12;
+
+        printf("Speed1 %.2f RPM (%.2f avg), cnt: %d\n", rpm, avg_rpm, count);
+
+
+        vTaskDelay(sampling_period_ms / portTICK_PERIOD_MS);
+    }
+}
+/************************************
 * Private Funtions - Motor Control
 ************************************/
 
@@ -183,7 +312,7 @@ static void setup_pwm() {
 
     xTaskCreate(speed_task, "motor_task", SPEED_TASK_STACK_SIZE, NULL, SPEED_TASK_PRIO, NULL);
     //brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_0, 50.0);
-    brushed_motor_backward(MCPWM_UNIT_0, MCPWM_TIMER_0, 70.0);
+    //brushed_motor_backward(MCPWM_UNIT_0, MCPWM_TIMER_0, 70.0);
 }
 
 static void mcpwm_example_gpio_initialize(void)
