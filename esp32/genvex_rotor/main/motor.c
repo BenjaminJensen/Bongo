@@ -61,6 +61,8 @@ owb_rmt_driver_info rmt_driver_info;
 static uint16_t cur_motor_temp = 0;
 SemaphoreHandle_t sem_motor_data;
 
+motor_data_t internal_data;
+
 static void setup_ds18b20(void);
 static void ds18b20_read_temp_task(void* );
 static void setup_pwm(void);
@@ -99,22 +101,15 @@ void motor_get_data(motor_data_t* data) {
         data->temperature = cur_motor_temp;
         data->set_point = set_speed;
         data->speed = cur_speed;
+        data->rpm0 = internal_data.rpm0;
+        data->rpm0_avg = internal_data.rpm0_avg;
+        data->rpm1 = internal_data.rpm1;
+        data->rpm1_avg = internal_data.rpm1_avg;
         xSemaphoreGive(sem_motor_data);
     }
     else {
         ESP_LOGW(TAG, "Unable to take motor data Mutex in \"ds18b20_read_temp_task\"");
     }
-}
-uint16_t motor_get_temp(void) {
-    uint16_t temp = 0xffff;
-    if( xSemaphoreTake( sem_motor_data, ( TickType_t ) 10 ) == pdTRUE ) {
-        temp = cur_motor_temp;
-        xSemaphoreGive(sem_motor_data);
-    }
-    else {
-        ESP_LOGW(TAG, "Unable to take motor data Mutex in \"ds18b20_read_temp_task\"");
-    }
-    return temp;
 }
 
 typedef struct  {
@@ -134,8 +129,8 @@ void speed_task(void* p) {
 
     while(1) {
         if(set_speed > cur_speed){
-            ESP_LOGI(TAG, "Ramp-up current: %d to %d", cur_speed, set_speed);
-            ESP_LOGI(TAG, "Step current: %d, max: %d", cur_step, speed_curve[cur_speed+1].max);
+            ESP_LOGD(TAG, "Ramp-up current: %d to %d", cur_speed, set_speed);
+            ESP_LOGD(TAG, "Step current: %d, max: %d", cur_step, speed_curve[cur_speed+1].max);
             if(cur_step < speed_curve[cur_speed + 1].max) {
                 
                 // Increment step
@@ -153,8 +148,8 @@ void speed_task(void* p) {
             }
         }
         else if( set_speed < cur_speed) {
-            ESP_LOGI(TAG, "Ramp-down current: %d to %d", cur_speed, set_speed);
-            ESP_LOGI(TAG, "Step current: %d, max: %d", cur_step, speed_curve[cur_speed-1].max);
+            ESP_LOGD(TAG, "Ramp-down current: %d to %d", cur_speed, set_speed);
+            ESP_LOGD(TAG, "Step current: %d, max: %d", cur_step, speed_curve[cur_speed-1].max);
             if(cur_step > speed_curve[cur_speed - 1].max) {
                 // Increment step
                 cur_step -= speed_curve[cur_speed].step;
@@ -171,6 +166,7 @@ void speed_task(void* p) {
                 ESP_LOGI(TAG, "New step : %d, max: %d. Speed: %d", cur_step, speed_curve[cur_speed].max, cur_speed);
             }
         }
+        
         vTaskDelay(SPEED_STEP_MS / portTICK_PERIOD_MS);
     } // while
 }
@@ -240,54 +236,92 @@ static void setup_pcnt(void) {
 }
 
 static void pcnt_task(void* data) {
-    int16_t count = 0;
-    float rpm;
-    float sampling_period_ms = 5000.0f;
+    int16_t count0 = 0;
+    int16_t count1 = 0;
 
+    float rpm0;
+    float rpm1;
+
+    float rpm0_avg = 0;
+    float rpm1_avg = 0;
+    
     float filter0[12] = {0};
     int filter_index0 = 0;
     
     float filter1[12] = {0};
     int filter_index1 = 0;
 
+    int retry = 0;
+    float sampling_period_ms = 5000.0f;
+
     while(1) {
         // Unit 0
-        pcnt_get_counter_value(PCNT_UNIT0, &count);
+        pcnt_get_counter_value(PCNT_UNIT0, &count0);
         pcnt_counter_clear(PCNT_UNIT0);
-        float tmp = count;
+        float tmp = count0;
         tmp = tmp / 4.0f;
-        rpm = (float)(60.0f*1000.0f/(float)sampling_period_ms) * tmp;
+        rpm0 = (float)(60.0f*1000.0f/(float)sampling_period_ms) * tmp;
 
-        filter0[filter_index0++] = rpm;
+        filter0[filter_index0++] = rpm0;
         if(filter_index0 >= 12)
             filter_index0 = 0;
-        float avg_rpm = 0;
+        
         for(int i = 0; i < 12; i++)
-            avg_rpm += filter0[i];
+            rpm0_avg += filter0[i];
 
-        avg_rpm /= 12;
+        rpm0_avg /= 12;
 
-        printf("Speed0 %.2f RPM (%.2f avg), cnt: %d\n", rpm, avg_rpm, count);
+        // -----------------
+        // Speed check
+        // -----------------
+        if(cur_speed > 0 && rpm0 == 0) {
+            if(retry >= 1) {
+                brushed_motor_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
+                ESP_LOGE(TAG, "RPM == 0, speed == %d. UNABLE TO TURN ROTOR!", cur_speed);
+            }
+            else {
+                retry++;
+            }
+        }
 
+        // -----------------
         // Unit 1
-        pcnt_get_counter_value(PCNT_UNIT1, &count);
+        // -----------------
+        pcnt_get_counter_value(PCNT_UNIT1, &count1);
         pcnt_counter_clear(PCNT_UNIT1);
-        tmp = count;
+        tmp = count1;
         tmp = tmp / 4.0f;
-        rpm = (float)(60.0f*1000.0f/(float)sampling_period_ms) * tmp;
+        rpm1 = (float)(60.0f*1000.0f/(float)sampling_period_ms) * tmp;
 
-        filter1[filter_index1++] = rpm;
+        filter1[filter_index1++] = rpm1;
         if(filter_index1 >= 12)
             filter_index1 = 0;
-        avg_rpm = 0;
+        rpm1_avg = 0;
         for(int i = 0; i < 12; i++)
-            avg_rpm += filter1[i];
+            rpm1_avg += filter1[i];
 
-        avg_rpm /= 12;
+        rpm1_avg /= 12;
 
-        printf("Speed1 %.2f RPM (%.2f avg), cnt: %d\n", rpm, avg_rpm, count);
+        // update internal data structure
+        if( sem_motor_data != NULL ) {
+            if( xSemaphoreTake( sem_motor_data, ( TickType_t ) 10 ) == pdTRUE ) {
+                internal_data.rpm0 = rpm0;
+                internal_data.rpm1 = rpm1;
+                internal_data.rpm0_avg = rpm0_avg;
+                internal_data.rpm1_avg = rpm1_avg;
+                xSemaphoreGive(sem_motor_data);
+            }
+            else {
+                ESP_LOGW(TAG, "Unable to take motor data Mutex in \"pcnt_task\"");
+            }
+        }
+        else {
+            ESP_LOGW(TAG, "Motor data Mutex is NULL \"pcnt_task\"");
+        }
 
-
+        ESP_LOGI(TAG, "Speed0 %.2f RPM (%.2f avg), cnt: %d", rpm0, rpm0_avg, count0);
+        ESP_LOGI(TAG, "Speed1 %.2f RPM (%.2f avg), cnt: %d", rpm1, rpm1_avg, count1);
+        
         vTaskDelay(sampling_period_ms / portTICK_PERIOD_MS);
     }
 }

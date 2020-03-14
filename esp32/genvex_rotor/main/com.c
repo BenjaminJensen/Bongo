@@ -45,6 +45,8 @@ static struct  {
 	uint32_t pres;
 	uint32_t humi;
 	int16_t mtemp;
+    uint8_t rpm0;
+
 } status_data;
 
 static void com_eval_cmd(uint8_t cmd, uint8_t data);
@@ -205,7 +207,7 @@ void send_status() {
     speed = 0; 
 	setpoint = 0; 
     motor_get_data(&motor);
-    speed = motor.speed;
+    speed = motor.rpm0;
     setpoint = motor.set_point;
     mtemp = motor.temperature;
 	
