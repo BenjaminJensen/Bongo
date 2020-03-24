@@ -56,17 +56,34 @@ bool mqttw_subscribe(const char* topic, int qos, mqttw_sub_handle_t handle) {
   bool ret = false;
 
   if(xSemaphoreTake( subMutex, 100 / portTICK_PERIOD_MS ) == pdTRUE) {
+    bool found = false;
+
     // Evaluate free subscription slots
     if(sub_table_cnt < (MAX_SUB - 1) ) {
-      if(esp_mqtt_client_subscribe(local_client, topic, qos) > -1) {
-        sub_table_cnt++;
-        sub_table[sub_table_cnt].handle = handle;
-        strcpy(sub_table[sub_table_cnt].topic, topic);
-        ret = true;
+      for(int index = 0; index <= sub_table_cnt; index++) {
+        ESP_LOGI(TAG, "(mqttw_handle_data) index: %d {sub_table_cnt = %d}", index, sub_table_cnt);
+        if(strncmp(topic, sub_table[index].topic, strlen(topic)) == 0) {
+          if(sub_table[index].handle != NULL) {
+            found = true;
+          }
+        }
+      }
+
+      if(found == false) {
+        if(esp_mqtt_client_subscribe(local_client, topic, qos) > -1) {
+          sub_table_cnt++;
+          sub_table[sub_table_cnt].handle = handle;
+          strcpy(sub_table[sub_table_cnt].topic, topic);
+          ret = true;
+        }
+        else {
+          ESP_LOGW(TAG, "Error subscribing");
+        }
       }
       else {
-        ESP_LOGW(TAG, "Error subscribing");
+        ESP_LOGW(TAG, "mqttw_subscribe: topic already subscribed!");
       }
+
     } 
     else {
       ESP_LOGW(TAG, "No free sub slots, MAX: %d", sub_table_cnt);
@@ -90,6 +107,7 @@ void mqttw_handle_data(int topic_len, const char* topic, int data_len, const cha
     bool found = false;
 
     for(int index = 0; index <= sub_table_cnt; index++) {
+      ESP_LOGI(TAG, "(mqttw_handle_data) index: %d {sub_table_cnt = %d}", index, sub_table_cnt);
       if(strncmp(topic, sub_table[index].topic, topic_len) == 0) {
         if(sub_table[index].handle != NULL) {
           (*(sub_table[index].handle))(data, data_len);
