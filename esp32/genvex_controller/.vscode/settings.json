@@ -1,0 +1,27 @@
+{
+    "C_Cpp.clang_format_style": "Visual Studio",
+    "editor.formatOnSave": false,
+    "[cpp]": {
+        "editor.quickSuggestions": true
+    },
+    "[c]": {
+        "editor.quickSuggestions": true
+    },
+    "C_Cpp.intelliSenseEngineFallback": "Disabled",
+    "files.associations": {
+        "bme280.h": "c",
+        "bme280_wrapper.h": "c",
+        "bme280_defs.h": "c",
+        "spi_master.h": "c",
+        "stdlib.h": "c",
+        "uart_struct.h": "c",
+        "freertos.h": "c",
+        "stdint.h": "c",
+        "motor.h": "c",
+        "queue.h": "c",
+        "esp_event_loop.h": "c",
+        "mqtt_client.h": "c"
+    },
+    "cmake.configureOnOpen": false,
+    "C_Cpp.errorSquiggles": "Enabled"
+} 

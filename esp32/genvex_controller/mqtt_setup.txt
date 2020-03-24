@@ -1,0 +1,132 @@
+"" Topic ""
+homeassistant/sensor/genvex/in-preT/config
+""" Config payload """
+{"device_class": "temperature", 
+"name": "In-pre Temperature", 
+"state_topic": "homeassistant/sensor/genvex/in-pre/state", 
+"unit_of_measurement": "°C", 
+"value_template": "{{ value_json.t}}",
+"unique_id": "genvex-in-pre-t",
+"device": 
+  {"name": "Genvex Controller", 
+    "identifiers": ["genvexcontrolleresp32"],
+    "model": "Genvex Controller MK1",
+    "manufacturer": "BJ Inc."
+  }
+}
+
+""" State Payload """
+{"t": 11}
+
+""" Topic """
+
+homeassistant/sensor/genvex/in-preH/config
+
+""" Config payload """
+{"device_class": "humidity", 
+"name": "In-pre Humidity", 
+"state_topic": "homeassistant/sensor/genvex/in-pre/state", 
+"unit_of_measurement": "%", 
+"value_template": "{{ value_json.h}}",
+"unique_id": "genvex-in-pre-h",
+"device": 
+  {"name": "Genvex Controller", 
+    "identifiers": ["genvexcontrolleresp32"],
+    "model": "Genvex Controller MK1",
+    "manufacturer": "BJ Inc."
+  }
+}
+
+""" State Payload """
+{"t": 11, "h": 23}
+
+""" Topic """
+
+homeassistant/sensor/genvex/in-preP/config
+
+""" Config payload """
+{"device_class": "pressure", 
+"name": "In-pre Pressure", 
+"state_topic": "homeassistant/sensor/genvex/in-pre/state", 
+"unit_of_measurement": "hPa", 
+"value_template": "{{ value_json.p}}",
+"unique_id": "genvex-in-pre-p",
+"device": 
+  {"name": "Genvex Controller", 
+    "identifiers": ["genvexcontrolleresp32"],
+    "model": "Genvex Controller MK1",
+    "manufacturer": "BJ Inc."
+  }
+}
+
+""" State Payload """
+{"t": 11, "h": 23, "p": 345.3}
+-----------------------------------
+
+{"device_class": "pressure", 
+"name": "In-pre Pressure", 
+"state_topic": "homeassistant/sensor/genvex/in-pre/state", 
+"unit_of_measurement": "hPa", 
+"value_template": "{{ value_json.h}}" }
+
+genvex/in-preP/config
+genvex/in-pre/state
+----------------------------------
+genvex/in-postT/config
+genvex/in-postH/config
+genvex/in-postP/config
+genvex/in-post/state
+
+genvex/out-preT/config
+genvex/out-preH/config
+genvex/out-preP/config
+genvex/out-pre/state
+
+genvex/out-postT/config
+genvex/out-postH/config
+genvex/out-postP/config
+genvex/out-postP/state
+
+https://www.home-assistant.io/integrations/fan.mqtt/
+
+-config topic
+homeassistant/fan/genvex/rotor/config
+
+-config payload: 
+
+{"payload_on": 1, 
+  "payload_off": 0, 
+  "payload_low_speed": 1, 
+  "payload_medium_speed": 2, 
+  "payload_high_speed": 3, 
+  "name": "Genvex Rotor",
+  "state_topic": "homeassistant/fan/genvex/rotor/on/state",
+  "command_topic": "homeassistant/fan/genvex/rotor/on/set",
+  "speed_state_topic": "homeassistant/fan/genvex/rotor/speed/state",
+  "speed_command_topic": "homeassistant/fan/genvex/rotor/speed/set",
+  "unique_id": "genvex-rotor-fan",
+  "speeds":["off", "low", "medium","high"],
+  "device": 
+  {"name": "Genvex Controller", 
+    "identifiers": ["genvexcontrolleresp32"],
+    "model": "Genvex Controller MK1",
+    "manufacturer": "BJ Inc."
+  }
+}
+
+
+genvex/rotor/config
+genvex/rotor/on/state
+genvex/rotor/on/command
+genvex/rotor/speed/state
+genvex/rotor/speed/command
+
+genvex/rotorT/config
+genvex/rotorT/state
+genvex/rotorH/config
+genvex/rotorH/state
+genvex/rotorP/config
+genvex/rotorP/state
+
+genvex/rotor/rpm/config
+genvex/rotor/rpm/state

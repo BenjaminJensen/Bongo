@@ -1,7 +1,25 @@
 {
     "configurations": [
         {
-            "name": "Win32",
+            "name": "ESP32",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/ben/.espressif/tools/xtensa-esp32-elf/1.22.0-80-g6c4433a5-5.2.0/**",
+                "C:/esp-idf/esp-idf/esp-idf/components/**",
+                "C:/esp-idf/esp-idf/esp-idf/components/newlib/include"
+            ],
+            "browse": {
+                "path": [
+                    "${config:idf.espIdfPath}/components"
+                ],
+                "limitSymbolsToIncludedHeaders": false
+            },
+            "intelliSenseMode": "gcc-x86"
+        },
+        {
+            "name": "ESP32",
             "includePath": [
                 "${workspaceFolder}/**"
             ],
@@ -10,8 +28,20 @@
                 "UNICODE",
                 "_UNICODE"
             ],
-            "intelliSenseMode": "msvc-x64",
-            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
+            "intelliSenseMode": "gcc-x86"
+        },
+        {
+            "name": "ESP32",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:\\Users\\ben\\.espressif\\tools\\xtensa-esp32-elf\\1.22.0-80-g6c4433a5-5.2.0\\xtensa-esp32-elf\\xtensa-esp32-elf\\include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "intelliSenseMode": "msvc-x64"
         }
     ],
     "version": 4
