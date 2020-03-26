@@ -61,7 +61,7 @@ bool mqttw_subscribe(const char* topic, int qos, mqttw_sub_handle_t handle) {
     // Evaluate free subscription slots
     if(sub_table_cnt < (MAX_SUB - 1) ) {
       for(int index = 0; index <= sub_table_cnt; index++) {
-        ESP_LOGI(TAG, "(mqttw_handle_data) index: %d {sub_table_cnt = %d}", index, sub_table_cnt);
+        ESP_LOGD(TAG, "(mqttw_handle_data) index: %d {sub_table_cnt = %d}", index, sub_table_cnt);
         if(strncmp(topic, sub_table[index].topic, strlen(topic)) == 0) {
           if(sub_table[index].handle != NULL) {
             found = true;
@@ -81,7 +81,13 @@ bool mqttw_subscribe(const char* topic, int qos, mqttw_sub_handle_t handle) {
         }
       }
       else {
-        ESP_LOGW(TAG, "mqttw_subscribe: topic already subscribed!");
+        ESP_LOGI(TAG, "mqttw_subscribe: topic already subscribed, re-subscribing.");
+        if(esp_mqtt_client_subscribe(local_client, topic, qos) < 0) {
+          ESP_LOGW(TAG, "Error re-subscribing");
+        }
+        else {
+          ret = true;
+        }
       }
 
     } 
