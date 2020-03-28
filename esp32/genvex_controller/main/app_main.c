@@ -16,6 +16,8 @@
 
 // New includes
 #include "mqtt.h"
+#include "com.h"
+#include "bme280_wrapper.h"
 
 static const char *TAG = "GENVEX";
 
@@ -81,5 +83,8 @@ void app_main()
     wifi_init();
 
     // New start
+    setup_bme280();
+    com_init();
+
     mqtt_init();
 }

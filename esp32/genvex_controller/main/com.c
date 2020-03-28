@@ -6,7 +6,6 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "motor.h"
 #include "bme280_wrapper.h"
 
 #define SLAVE_ID 10
@@ -17,8 +16,8 @@
 
 // Note: UART2 default pins IO16, IO17 do not work on ESP32-WROVER module 
 // because these pins connected to PSRAM
-#define TXD_PIN   (23)
-#define RXD_PIN   (22)
+#define TXD_PIN   (17)
+#define RXD_PIN   (16)
 
 // RTS for RS485 Half-Duplex Mode manages DE/~RE
 #define RTS_PIN   (18)
@@ -51,7 +50,6 @@ static struct  {
 
 static void com_eval_cmd(uint8_t cmd, uint8_t data);
 static void com_task();
-static void send_status();
 static void com_parse_com(uint8_t c);
 
 /************************************
@@ -164,11 +162,12 @@ static void com_parse_com(uint8_t c) {
 static void com_eval_cmd(uint8_t cmd, uint8_t data) {
 	switch(cmd) {
 		case 0:
-			send_status();
+            // Not implemented in the 
+			//send_status();
 			break;
         case 1:
             ESP_LOGI(TAG, "Change speed to (%d)", data);
-            motor_set_speed(data);
+            //motor_set_speed(data);
             break;
 		default:
             ESP_LOGW(TAG, "Unknown command(%d) in \"com_eval_cmd\"!", cmd);
@@ -176,76 +175,4 @@ static void com_eval_cmd(uint8_t cmd, uint8_t data) {
 	}
 }
 
-void send_status() {
-	uint8_t id; // 0
-	uint8_t speed; // 15
-	uint8_t setpoint; // 16
-	int32_t temp;
-	uint32_t pres;
-	uint32_t humi;
-	int16_t mtemp;
-	uint8_t i = 0; // Transmission buffer index
-	uint8_t k;
-	uint8_t tmp;
-    struct bme280_data bme280;
-	char buf[21];
-    // Test data
-	id = 10;
 
-    temp = 0;
-    pres = 0;
-    humi = 0;
-    mtemp = 0;
-    
-    bme280_get_data(&bme280);
-    temp = bme280.temperature;
-    pres = bme280.pressure;
-    humi = bme280.humidity;
-    
-	
-	motor_data_t motor;
-    speed = 0; 
-	setpoint = 0; 
-    motor_get_data(&motor);
-    speed = motor.rpm0;
-    setpoint = motor.set_point;
-    mtemp = motor.temperature;
-	
-	
-	buf[0] = 0xAA;
-	buf[1] = 0x00;
-	buf[2] = 0xFF;
-	
-	buf[3] = id;
-	i = 4;
-	
-	// send 4 bytes BME280-temp
-	for(k = 0; k < 4; k++) {
-		tmp = (uint8_t) ((temp >> i*8)& 0xFF);
-		buf[i++] = tmp;
-	}
-	// send 4 bytes BME280-pres
-	for(k = 0; k < 4; k++) {
-		tmp = (uint8_t) ((pres >> i*8)& 0xFF);
-		buf[i++] = tmp;
-	}
-	// send 4 bytes BME280-humi
-	for(k = 0; k < 4; k++) {
-		tmp = (uint8_t) ((humi >> i*8)& 0xFF);
-		buf[i++] = tmp;
-	}
-	
-	// Motor temperature
-	tmp = (uint8_t)(mtemp & 0xFF);
-	buf[i++] = tmp;
-	tmp = (uint8_t)((mtemp >> 8) & 0xFF);
-	buf[i++] = tmp;
-	
-	// Current speed
-	buf[i++] = speed;
-	
-	// Current setpoint
-	buf[i++] = setpoint;
-	
-    uart_write_bytes(UART_PORT, buf, 20);
-}
