@@ -2,11 +2,13 @@
 #include "mqtt_client.h"
 #include "esp_log.h"
 #include "mqtt_wrapper.h"
+#include "com.h"
 
 /************************************
 * Declarations
 ************************************/
 static const char *TAG = "GENVEX_MQTT";
+static uint8_t last_speed;
 
 static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event);
 static void mqtt_app_start(void);
@@ -22,11 +24,34 @@ esp_mqtt_client_handle_t client;
 ************************************/
 
 int mqtt_init(void) {
-    
+    last_speed = 2;
     mqtt_app_start();
     mqttw_init(client);
 
     return 1;
+}
+
+/**
+ * Updates the rotor status over MQTT
+ */
+
+int mqtt_update_rotor_status(rotor_status_t* status) {
+    int ret = -1;
+    char buf[128];
+    int len = 0;
+    ESP_LOGI(TAG, "update rorot status: t: %.2f, h: %.2f, p: %.2f, mt: %.2f, RPM: %d, state: %d", status->temp, status->humi, status->pres, status->motor_temp, status->rotor_rpm, status->state);
+
+    len = sprintf(buf, "{\"t\": %.2f, \"h\": %.2f, \"p\": %.2f, \"mt\": %.2f, \"rrpm\": %d, \"s\": %d}",status->temp, status->humi, status->pres, status->motor_temp, status->rotor_rpm, status->state);
+    if(len < 128) {
+        buf[len] = '\0'; // Terminate string
+        mqttw_publish("homeassistant/sensor/genvex/rotor/state", buf, 0);
+        ret  = 0;
+    } 
+    else {
+        ESP_LOGW(TAG, "Buffer overflow (%d >= 128)! (mqtt_update_rotor_status)", len);
+    }
+
+    return ret;
 }
 
 /************************************
@@ -117,14 +142,45 @@ static void mqtt_hass_reqister(void) {
     // Rotor fan
     //-----------------------------
 
-
     const char* rotor_fan_config_payload = "{\"payload_on\": 1, \"payload_off\": 0, \"payload_low_speed\": 1, \"payload_medium_speed\": 2, \"payload_high_speed\": 3, \"name\": \"Genvex Rotor\",\"state_topic\": \"homeassistant/fan/genvex/rotor/on/state\",\"command_topic\": \"homeassistant/fan/genvex/rotor/on/set\",\"speed_state_topic\": \"homeassistant/fan/genvex/rotor/speed/state\",\"speed_command_topic\": \"homeassistant/fan/genvex/rotor/speed/set\",\"unique_id\": \"genvex-rotor-fan\",\"speeds\":[\"off\", \"low\", \"medium\",\"high\"],\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
     mqttw_publish(rotor_fan_config_topic, rotor_fan_config_payload, 0);
 
     mqttw_subscribe(rotor_fan_on_set_topic, 0, set_rotor_on);
     mqttw_subscribe(rotor_fan_command_topic, 0, set_rotor_speed);
 
+    //-----------------------------
+    // Rotor sensors
+    //-----------------------------
+    // rotorT
+    const char* rotor_t_config_topic = "homeassistant/sensor/genvex/rotorT/config";
+    const char* rotor_t_config_payload = "{\"device_class\": \"temperature\",\"name\": \"Rotor Temperature\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"unit_of_measurement\": \"°C\", \"value_template\": \"{{ value_json.t}}\",\"unique_id\": \"genvex-rotor-t\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
+    mqttw_publish(rotor_t_config_topic, rotor_t_config_payload, 0);
+    
+    // rotorH
+    const char* rotor_h_config_topic = "homeassistant/sensor/genvex/rotorH/config";
+    const char* rotor_h_config_payload = "{\"device_class\": \"humidity\",\"name\": \"Rotor Humidity\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"unit_of_measurement\": \"%\", \"value_template\": \"{{ value_json.h}}\",\"unique_id\": \"genvex-rotor-h\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
+    mqttw_publish(rotor_h_config_topic, rotor_h_config_payload, 0);
+    
+    // rotorP
+    const char* rotor_p_config_topic = "homeassistant/sensor/genvex/rotorP/config";
+    const char* rotor_p_config_payload = "{\"device_class\": \"pressure\",\"name\": \"Rotor Pressure\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"unit_of_measurement\": \"hPa\", \"value_template\": \"{{ value_json.p}}\",\"unique_id\": \"genvex-rotor-p\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
+    mqttw_publish(rotor_p_config_topic, rotor_p_config_payload, 0);
 
+    // rotorMT
+    const char* rotor_mt_config_topic = "homeassistant/sensor/genvex/rotorMT/config";
+    const char* rotor_mt_config_payload = "{\"device_class\": \"temperature\",\"name\": \"Rotor Motor Temperature\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"unit_of_measurement\": \"°C\", \"value_template\": \"{{ value_json.mt}}\",\"unique_id\": \"genvex-rotor-mt\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
+    mqttw_publish(rotor_mt_config_topic, rotor_mt_config_payload, 0);
+    
+    // rotor rpm
+    const char* rotor_rpm_config_topic = "homeassistant/sensor/genvex/rotorRPM/config";
+    const char* rotor_rpm_config_payload = "{\"name\": \"Rotor RPM\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"unit_of_measurement\": \"RPM\", \"value_template\": \"{{ value_json.rrpm}}\",\"unique_id\": \"genvex-rotor-rrpm\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
+    mqttw_publish(rotor_rpm_config_topic, rotor_rpm_config_payload, 0);
+    
+    // rotor state
+    const char* rotor_speed_config_topic = "homeassistant/sensor/genvex/rotorS/config";
+    const char* rotor_speed_config_payload = "{\"name\": \"Rotor Speed\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"value_template\": \"{{ value_json.s}}\",\"unique_id\": \"genvex-rotor-speed\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
+    mqttw_publish(rotor_speed_config_topic, rotor_speed_config_payload, 0);
+    
     //-----------------------------
     // Publish
     //-----------------------------
@@ -234,7 +290,9 @@ static void set_rotor_speed(const char* data, int len)
         speed -= '0';
         
     }
+    last_speed = speed;
 
+    com_set_rotor_speed(speed);
     buf[0] = speed + '0';
     buf[1] = 0; // String termination
     mqttw_publish(rotor_fan_speed_state_topic, buf, 0);
@@ -250,6 +308,13 @@ static void set_rotor_on(const char* data, int len)
 
     uint8_t state = *data - '0';
     ESP_LOGI(TAG, "Change State : %d", state);
+
+    if(state == 1) { // Turn on
+        com_set_rotor_speed(last_speed);
+    } 
+    else { // Turn off
+        com_set_rotor_speed(0);
+    }
 
     set_rotor_state(state);
 }

@@ -20,7 +20,8 @@
         "motor.h": "c",
         "queue.h": "c",
         "esp_event_loop.h": "c",
-        "mqtt_client.h": "c"
+        "mqtt_client.h": "c",
+        "*.ipp": "c"
     },
     "cmake.configureOnOpen": false,
     "C_Cpp.errorSquiggles": "Enabled"
