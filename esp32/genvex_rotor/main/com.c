@@ -177,19 +177,16 @@ static void com_eval_cmd(uint8_t cmd, uint8_t data) {
 }
 
 void send_status() {
-	uint8_t id; // 0
-	uint8_t speed; // 15
-	uint8_t setpoint; // 16
+	uint8_t id;
+	uint8_t setpoint;
 	int32_t temp;
 	uint32_t pres;
 	uint32_t humi;
 	int16_t mtemp;
-	uint8_t i = 0; // Transmission buffer index
-	uint8_t k;
-	uint8_t tmp;
     struct bme280_data bme280;
 	char buf[21];
-    // Test data
+
+    // Rotor Controller ID
 	id = 10;
 
     temp = 0;
@@ -201,51 +198,55 @@ void send_status() {
     temp = bme280.temperature;
     pres = bme280.pressure;
     humi = bme280.humidity;
-    
 	
 	motor_data_t motor;
-    speed = 0; 
 	setpoint = 0; 
     motor_get_data(&motor);
-    speed = motor.rpm0;
     setpoint = motor.set_point;
     mtemp = motor.temperature;
-	
 	
 	buf[0] = 0xAA;
 	buf[1] = 0x00;
 	buf[2] = 0xFF;
 	
 	buf[3] = id;
-	i = 4;
 	
-	// send 4 bytes BME280-temp
-	for(k = 0; k < 4; k++) {
-		tmp = (uint8_t) ((temp >> i*8)& 0xFF);
-		buf[i++] = tmp;
-	}
-	// send 4 bytes BME280-pres
-	for(k = 0; k < 4; k++) {
-		tmp = (uint8_t) ((pres >> i*8)& 0xFF);
-		buf[i++] = tmp;
-	}
-	// send 4 bytes BME280-humi
-	for(k = 0; k < 4; k++) {
-		tmp = (uint8_t) ((humi >> i*8)& 0xFF);
-		buf[i++] = tmp;
-	}
-	
+    // BME280 temperature
+    buf[4] = temp & 0xFF;
+    buf[5] = (temp >> 8) & 0xFF;
+    buf[6] = (temp >> 16) & 0xFF;
+    buf[7] = (temp >> 24) & 0xFF;
+    
+    // BME280 Pressure
+    buf[8] = pres & 0xFF;
+    buf[9] = (pres >> 8) & 0xFF;
+    buf[10] = (pres >> 16) & 0xFF;
+    buf[11] = (pres >> 24) & 0xFF;
+    
+    // BME280 Humidity
+    buf[12] = humi & 0xFF;
+    buf[13] = (humi >> 8) & 0xFF;
+    buf[14] = (humi >> 16) & 0xFF;
+    buf[15] = (humi >> 24) & 0xFF;
+
 	// Motor temperature
-	tmp = (uint8_t)(mtemp & 0xFF);
-	buf[i++] = tmp;
-	tmp = (uint8_t)((mtemp >> 8) & 0xFF);
-	buf[i++] = tmp;
+	buf[16] = (uint8_t)(mtemp & 0xFF);
+	buf[17] = (uint8_t)((mtemp >> 8) & 0xFF);
 	
-	// Current speed
-	buf[i++] = speed;
+	// Current  {rpm0}
+	buf[18] = motor.rpm0;
 	
-	// Current setpoint
-	buf[i++] = setpoint;
+    // Average RPM0
+    buf[19] = motor.rpm0_avg;
+
+	// Current setpoint {0-3}
+	buf[20] = setpoint;
 	
-    uart_write_bytes(UART_PORT, buf, 20);
+    // Rotor fault {0=no, 1=yes}
+    buf[21] = motor.rotor_fault;
+
+    // Temperature fault {0=no, 1=yes}
+    buf[22] = motor.temp_fault;
+
+    uart_write_bytes(UART_PORT, buf, 23);
 }

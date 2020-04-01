@@ -28,6 +28,7 @@ static const char *TAG = "MOTOR";
 #define GPIO_PWM0B_OUT 16   //Set GPIO 16 as PWM0B
 
 #define SPEED_STEP_MS (100)
+
 static uint8_t set_speed;
 static uint8_t cur_speed = 0;
 
@@ -42,6 +43,7 @@ static uint8_t cur_speed = 0;
 
 static void setup_pcnt(void);
 static void pcnt_task(void* data);
+
 /************************************
 * DS18B20
 ************************************/
@@ -62,6 +64,9 @@ static uint16_t cur_motor_temp = 0;
 SemaphoreHandle_t sem_motor_data;
 
 motor_data_t internal_data;
+
+static uint8_t rotation_fault;
+static uint8_t temp_fault;
 
 static void setup_ds18b20(void);
 static void ds18b20_read_temp_task(void* );
@@ -86,6 +91,9 @@ void motor_init() {
         ESP_LOGE(TAG, "Unable to create motor data Mutex!");
     }
 
+    rotation_fault = 0;
+    temp_fault = 0;
+
     // Set up pulse counters for speed measurement
     setup_pcnt();
 
@@ -105,6 +113,8 @@ void motor_get_data(motor_data_t* data) {
         data->rpm0_avg = internal_data.rpm0_avg;
         data->rpm1 = internal_data.rpm1;
         data->rpm1_avg = internal_data.rpm1_avg;
+        data->rotor_fault = internal_data.rotor_fault;
+        data->temp_fault = internal_data.temp_fault;
         xSemaphoreGive(sem_motor_data);
     }
     else {
@@ -238,6 +248,7 @@ static void setup_pcnt(void) {
 static void pcnt_task(void* data) {
     int16_t count0 = 0;
     int16_t count1 = 0;
+    uint8_t fault = 0;
 
     float rpm0;
     float rpm1;
@@ -259,7 +270,7 @@ static void pcnt_task(void* data) {
         pcnt_get_counter_value(PCNT_UNIT0, &count0);
         pcnt_counter_clear(PCNT_UNIT0);
         float tmp = count0;
-        tmp = tmp / 4.0f;
+        tmp = tmp / 10.0f; // Pulses pr revolution
         rpm0 = (float)(60.0f*1000.0f/(float)sampling_period_ms) * tmp;
 
         filter0[filter_index0++] = rpm0;
@@ -276,6 +287,7 @@ static void pcnt_task(void* data) {
         // -----------------
         if(cur_speed > 0 && rpm0 == 0) {
             if(retry >= 1) {
+                fault = 1;
                 brushed_motor_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
                 ESP_LOGE(TAG, "RPM == 0, speed == %d. UNABLE TO TURN ROTOR!", cur_speed);
             }
@@ -309,6 +321,7 @@ static void pcnt_task(void* data) {
                 internal_data.rpm1 = rpm1;
                 internal_data.rpm0_avg = rpm0_avg;
                 internal_data.rpm1_avg = rpm1_avg;
+                internal_data.rotor_fault = fault;
                 xSemaphoreGive(sem_motor_data);
             }
             else {
@@ -452,7 +465,9 @@ static void ds18b20_read_temp_task(void* x) {
     // Read temperatures more efficiently by starting conversions on all devices at the same time
     int errors_count = 0;
     int sample_count = 0;
-    
+    int fault = 0;
+    int tmp = 0;
+
     TickType_t last_wake_time = xTaskGetTickCount();
 
     ESP_LOGI(TAG, "DS18B20 task started");
@@ -478,10 +493,21 @@ static void ds18b20_read_temp_task(void* x) {
         // Print results in a separate loop, after all have been read
         ESP_LOGV(TAG, "\nTemperature readings (degrees C): sample %d\n", ++sample_count);
         
+        tmp = reading >> 4;
+        if(tmp > 65) { // Over temperature protection
+            brushed_motor_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
+            ESP_LOGW(TAG, "Motor Temperature FAULT: %d C!", tmp);
+            fault = 1;
+        }
+        else {
+            fault = 0;
+        }
+
         if (error == DS18B20_OK) {
             if( sem_motor_data != NULL ) {
                 if( xSemaphoreTake( sem_motor_data, ( TickType_t ) 10 ) == pdTRUE ) {
                     cur_motor_temp = reading;
+                    internal_data.temp_fault = fault;
                     xSemaphoreGive(sem_motor_data);
                 }
                 else {

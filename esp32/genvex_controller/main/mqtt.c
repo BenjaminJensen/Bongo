@@ -5,19 +5,30 @@
 #include "com.h"
 
 /************************************
-* Declarations
+* Module definitions
 ************************************/
 static const char *TAG = "GENVEX_MQTT";
 static uint8_t last_speed;
+esp_mqtt_client_handle_t client;
 
+/************************************
+* Global MQTT topics
+************************************/
+static const char* rotor_fan_on_state_topic = "homeassistant/fan/genvex/rotor/on/state";
+static const char* rotor_fan_on_set_topic = "homeassistant/fan/genvex/rotor/on/set";
+static const char* rotor_fan_speed_state_topic = "homeassistant/fan/genvex/rotor/speed/state";
+static const char* rotor_fan_command_topic = "homeassistant/fan/genvex/rotor/speed/set";
+static const char* rotor_fan_config_topic = "homeassistant/fan/genvex/rotor/config";
+
+/************************************
+* Forvard declarations
+************************************/
 static esp_err_t mqtt_event_handler(esp_mqtt_event_handle_t event);
 static void mqtt_app_start(void);
 static void mqtt_hass_reqister(void);
 static void set_rotor_speed(const char* data, int len);
 static void set_rotor_on(const char* data, int len);
 static void set_rotor_state(uint8_t s);
-
-esp_mqtt_client_handle_t client;
 
 /************************************
 * Public Functions
@@ -34,14 +45,14 @@ int mqtt_init(void) {
 /**
  * Updates the rotor status over MQTT
  */
-
 int mqtt_update_rotor_status(rotor_status_t* status) {
     int ret = -1;
     char buf[128];
     int len = 0;
-    ESP_LOGI(TAG, "update rorot status: t: %.2f, h: %.2f, p: %.2f, mt: %.2f, RPM: %d, state: %d", status->temp, status->humi, status->pres, status->motor_temp, status->rotor_rpm, status->state);
+    ESP_LOGI(TAG, "update rorot status: t: %.2f, h: %.2f, p: %.2f, mt: %.2f, RPM: %d, AVG RPM: %d, state: %d, Temp Fault: %d, Rotor Fault: %d", status->temp, status->humi, status->pres, status->motor_temp, status->rotor_rpm, status->rotor_rpm_avg, status->state, status->temp_fault, status->rotor_fault);
 
-    len = sprintf(buf, "{\"t\": %.2f, \"h\": %.2f, \"p\": %.2f, \"mt\": %.2f, \"rrpm\": %d, \"s\": %d}",status->temp, status->humi, status->pres, status->motor_temp, status->rotor_rpm, status->state);
+    len = sprintf(buf, "{\"t\": %.2f, \"h\": %.2f, \"p\": %.2f, \"mt\": %.2f, \"rrpm\": %d, \"arrpm\": %d, \"s\": %d, \"rf\": %d, \"tf\": %d}",
+    status->temp, status->humi, status->pres, status->motor_temp, status->rotor_rpm, status->rotor_rpm_avg,status->state, status->rotor_fault, status->temp_fault);
     if(len < 128) {
         buf[len] = '\0'; // Terminate string
         mqttw_publish("homeassistant/sensor/genvex/rotor/state", buf, 0);
@@ -50,19 +61,27 @@ int mqtt_update_rotor_status(rotor_status_t* status) {
     else {
         ESP_LOGW(TAG, "Buffer overflow (%d >= 128)! (mqtt_update_rotor_status)", len);
     }
+    
+    buf[0] = status->state + '0';
+    buf[1] = '\0';
 
+    mqttw_publish(rotor_fan_speed_state_topic, buf, 0);
+
+    if(status->state > 0)
+        buf[0] = '1';
+    else {
+        buf[0] = '0';
+    }
+    
+    
+    mqttw_publish(rotor_fan_on_state_topic, buf, 0);
+    
     return ret;
 }
 
 /************************************
 * Private Functions
 ************************************/
-
-static const char* rotor_fan_on_state_topic = "homeassistant/fan/genvex/rotor/on/state";
-static const char* rotor_fan_on_set_topic = "homeassistant/fan/genvex/rotor/on/set";
-static const char* rotor_fan_speed_state_topic = "homeassistant/fan/genvex/rotor/speed/state";
-static const char* rotor_fan_command_topic = "homeassistant/fan/genvex/rotor/speed/set";
-static const char* rotor_fan_config_topic = "homeassistant/fan/genvex/rotor/config";
 
 static void mqtt_hass_reqister(void) {
 
@@ -181,6 +200,16 @@ static void mqtt_hass_reqister(void) {
     const char* rotor_speed_config_payload = "{\"name\": \"Rotor Speed\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"value_template\": \"{{ value_json.s}}\",\"unique_id\": \"genvex-rotor-speed\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
     mqttw_publish(rotor_speed_config_topic, rotor_speed_config_payload, 0);
     
+     // rotor fault
+    const char* rotor_rotor_fault_config_topic = "homeassistant/sensor/genvex/rotorRF/config";
+    const char* rotor_rotor_fault_config_payload = "{\"name\": \"Rotor Fault\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"value_template\": \"{{ value_json.rf}}\",\"unique_id\": \"genvex-rotor-rotor-fault\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
+    mqttw_publish(rotor_rotor_fault_config_topic, rotor_rotor_fault_config_payload, 0);
+    
+     // temperature fault
+    const char* rotor_temp_fault_config_topic = "homeassistant/sensor/genvex/rotorTF/config";
+    const char* rotor_temp_fault_config_payload = "{\"name\": \"Rotor Temperature fault\",\"state_topic\": \"homeassistant/sensor/genvex/rotor/state\", \"value_template\": \"{{ value_json.tf}}\",\"unique_id\": \"genvex-rotor-temp-fault\",\"device\": {\"name\": \"Genvex Controller\", \"identifiers\": [\"genvexcontrolleresp32\"],\"model\": \"Genvex Controller MK1\",\"manufacturer\": \"BJ Inc.\"}}";
+    mqttw_publish(rotor_temp_fault_config_topic, rotor_temp_fault_config_payload, 0);
+    
     //-----------------------------
     // Publish
     //-----------------------------
@@ -200,14 +229,15 @@ static void mqtt_hass_reqister(void) {
     // out-post
     const char* out_post_state_topic = "homeassistant/sensor/genvex/out-post/state";
     mqttw_publish(out_post_state_topic,"{\"t\":14,\"h\":24,\"p\":324.4}" , 0);
-    
+    /*
     // Rotor fan
     //const char* rotor_fan_on_state_topic = "homeassistant/fan/genvex/rotor/on/state";
     mqttw_publish(rotor_fan_on_state_topic,"1" , 0);
 
     //const char* rotor_fan_speed_state_topic = "homeassistant/fan/genvex/rotor/speed/state";
     mqttw_publish(rotor_fan_speed_state_topic,"2" , 0);
-
+    */
+   
     ESP_LOGI(TAG,"Publish");
 }
 
@@ -260,7 +290,8 @@ static void mqtt_app_start(void)
     esp_mqtt_client_config_t mqtt_cfg = {
         .uri = CONFIG_BROKER_URL,
         .event_handle = mqtt_event_handler,
-        .client_id ="Genvex Controller"
+        .client_id ="Genvex Controller",
+        .task_stack = 16384,
     };
 
     client = esp_mqtt_client_init(&mqtt_cfg);
@@ -282,7 +313,7 @@ static void set_rotor_speed(const char* data, int len)
     if(speed == 'o') {
         mqttw_publish(rotor_fan_on_state_topic,"0" , 0);
         speed = 0;
-        set_rotor_state(speed);
+        com_set_rotor_speed(speed);
     }
     else {
         if(len > 1)
@@ -295,7 +326,7 @@ static void set_rotor_speed(const char* data, int len)
     com_set_rotor_speed(speed);
     buf[0] = speed + '0';
     buf[1] = 0; // String termination
-    mqttw_publish(rotor_fan_speed_state_topic, buf, 0);
+    //mqttw_publish(rotor_fan_speed_state_topic, buf, 0);
 
     // TODO: send command to rotor controller
     ESP_LOGI(TAG, "Change speed: %d", speed);
@@ -316,7 +347,7 @@ static void set_rotor_on(const char* data, int len)
         com_set_rotor_speed(0);
     }
 
-    set_rotor_state(state);
+    //set_rotor_state(state);
 }
 
 /**
@@ -328,7 +359,8 @@ static void set_rotor_state(uint8_t s) {
 
     buf[0] = s + '0';
     buf[1] = 0; 
-    mqttw_publish(rotor_fan_on_state_topic, buf, 0);
+    //mqttw_publish(rotor_fan_on_state_topic, buf, 0);
 
     // TODO: Send command to rotor controller
+    set_rotor_state(s);
 }

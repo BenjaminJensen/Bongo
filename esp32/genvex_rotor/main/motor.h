@@ -10,6 +10,8 @@ typedef struct {
     float rpm0_avg;
     float rpm1;
     float rpm1_avg;
+    uint8_t temp_fault;
+    uint8_t rotor_fault;
 } motor_data_t;
 
 void motor_init(void);

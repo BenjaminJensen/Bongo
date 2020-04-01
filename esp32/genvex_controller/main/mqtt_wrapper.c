@@ -38,7 +38,7 @@ bool mqttw_publish(const char* topic, const char* data, int qos) {
     int msg_id;
     if(local_client != NULL) {
       msg_id = esp_mqtt_client_publish(local_client, topic, data, 0, qos, 0);
-      ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+      //ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
       ret = true;
     }
     else {

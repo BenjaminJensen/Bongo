@@ -5,10 +5,13 @@
 #include "include/timer.h"
 #include "include/bme280_wrapper.h"
 #include "include/com.h"
+#include <util/twi.h>
 
 /************************************
 * BME280
 ************************************/
+
+#define BME_I2C
 
 #define SS_HIGH (PORTB |= (1 << 2))
 #define SS_LOW (PORTB &= ~(1 << 2))
@@ -20,8 +23,13 @@ struct bme280_data comp_data;
 // Forward declarations
 int8_t user_spi_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len);
 int8_t user_spi_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len);
+
+int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len);
+int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len);
+
 void user_delay_ms(uint32_t period);
 void setup_bme280_spi();
+void setup_bme_i2c();
 
 /************************************
 * BME280 Public
@@ -32,12 +40,23 @@ int8_t setup_bme280() {
 	int8_t rslt = BME280_OK;
 	uint8_t settings_sel;
 	
-	setup_bme280_spi();
-
-	dev.intf = BME280_SPI_INTF;
-	dev.read = user_spi_read;
-	dev.write = user_spi_write;
-	dev.delay_ms = user_delay_ms;
+	#ifdef BME_I2C
+		setup_bme_i2c();
+		dev.dev_id = BME280_I2C_ADDR_PRIM;
+		dev.intf = BME280_I2C_INTF;
+		dev.read = user_i2c_read;
+		dev.write = user_i2c_write;
+		dev.delay_ms = user_delay_ms;
+	
+	#else
+		
+		setup_bme280_spi();
+		dev.dev_id = 0;	
+		dev.intf = BME280_SPI_INTF;
+		dev.read = user_spi_read;
+		dev.write = user_spi_write;
+		dev.delay_ms = user_delay_ms;
+	#endif
 	
 	rslt = bme280_init(&dev);
 	
@@ -92,6 +111,84 @@ void bme280_task() {
 */
 
 
+/*
+* WARNING: This function assumes it is only called with the arguments {1,2}
+*/
+void user_delay_ms(uint32_t period) {
+	
+	if(period)
+	_delay_ms(1);
+	else
+	_delay_ms(2);
+}
+
+#ifdef BME_I2C
+void setup_bme_i2c() {
+	
+}
+
+int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len)
+{
+    int8_t rslt = 0; /* Return 0 for Success, non-zero for failure */
+
+    /*
+     * The parameter dev_id can be used as a variable to store the I2C address of the device
+     */
+
+    /*
+     * Data on the bus should be like
+     * |------------+---------------------|
+     * | I2C action | Data                |
+     * |------------+---------------------|
+     * | Start      | -                   |
+     * | Write      | (reg_addr)          |
+     * | Stop       | -                   |
+     * | Start      | -                   |
+     * | Read       | (reg_data[0])       |
+     * | Read       | (....)              |
+     * | Read       | (reg_data[len - 1]) |
+     * | Stop       | -                   |
+     * |------------+---------------------|
+     */
+
+    return rslt;
+}
+
+int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len)
+{
+    int8_t rslt = 0; /* Return 0 for Success, non-zero for failure */
+
+    /*
+     * The parameter dev_id can be used as a variable to store the I2C address of the device
+     */
+
+    /*
+     * Data on the bus should be like
+     * |------------+---------------------|
+     * | I2C action | Data                |
+     * |------------+---------------------|
+     * | Start      | -                   |
+     * | Write      | (reg_addr)          |
+     * | Write      | (reg_data[0])       |
+     * | Write      | (....)              |
+     * | Write      | (reg_data[len - 1]) |
+     * | Stop       | -                   |
+     * |------------+---------------------|
+     */
+
+	TWIStart();
+	if (TWIGetStatus() != 0x08)
+		return -1;
+	//select devise and send A2 A1 A0 address bits
+	TWIWrite(reg_addr);
+	if (TWIGetStatus() != 0x18)
+		return -1;
+	
+	TWIStop();
+	
+    return rslt;
+}
+#else
 int8_t user_spi_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len) {
 	int8_t rslt = 0; /* Return 0 for Success, non-zero for failure */
 	/* Start transmission */
@@ -135,17 +232,6 @@ int8_t user_spi_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16
 	return rslt;
 }
 
-/*
-* WARNING: This function assumes it is only called with the arguments {1,2}
-*/
-void user_delay_ms(uint32_t period) {
-	
-	if(period)
-	_delay_ms(1);
-	else
-	_delay_ms(2);
-}
-
 void setup_bme280_spi() {
 	// Set MOSI, SCK as Output
 	DDRB = (1<<5) | (1<<3) | (1<<2);
@@ -154,3 +240,5 @@ void setup_bme280_spi() {
 	//Prescaler: Fosc/16, Enable Interrupts
 	SPCR = (1<<SPE) | (1<<MSTR) | (1<<SPR0) | (1<<SPR1) | (1<<CPHA) | (1<<CPOL);
 }
+
+#endif

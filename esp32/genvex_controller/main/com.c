@@ -97,7 +97,6 @@ void com_init() {
 }
 
 void com_set_rotor_speed(uint8_t speed) {
-    uint8_t buf[5];
     if( sem_rs485 != NULL ) {
 		if( xSemaphoreTake( sem_rs485, ( TickType_t ) 10 ) == pdTRUE ) {
             // Rotor set speed command
@@ -154,7 +153,7 @@ static void get_rotor_state() {
             uart_write_bytes(UART_PORT, buf, 5);
 
 			 // read responce from rotor, within 50ms
-            len = uart_read_bytes(UART_PORT, data, 20, 50/portTICK_RATE_MS);
+            len = uart_read_bytes(UART_PORT, data, 23, 50/portTICK_RATE_MS);
 			xSemaphoreGive(sem_rs485);
 		}
 		else {
@@ -165,8 +164,8 @@ static void get_rotor_state() {
 		ESP_LOGW(TAG, "Mutex is NULL \"get_rotor_state\"");
 	}
 
-    if(len == 20) { // all bytes read
-        ESP_LOGI(TAG, "Data from rotor successfully read");
+    if(len == 23) { // all bytes read
+        //ESP_LOGI(TAG, "Data from rotor successfully read");
 
         if(data[0] == 0xAA && data[1] == 0x00 && data[2] == 0xFF && data[3] == 10) {
             parse_rotor_state(&data[4]);
@@ -174,7 +173,6 @@ static void get_rotor_state() {
         else {
             ESP_LOGW(TAG, "Rotor Status: Wrong header %x %x %x %x", data[0], data[1], data[2], data[3]);
         }
-	
     }
     else {
         ESP_LOGW(TAG, "Data read from Rotor failed. %d of 20 bytes read", len);
@@ -189,8 +187,6 @@ static void parse_rotor_state(uint8_t *data) {
     uint32_t pres = 0;
     uint32_t humi = 0;
     int16_t mtemp = 0;
-    uint8_t rpm0 = 0;
-    uint8_t setpoint = 0;
     rotor_status_t status;
 
     //-------------------------
@@ -229,15 +225,22 @@ static void parse_rotor_state(uint8_t *data) {
     status.motor_temp = convert_ds18b20(mtemp); 
 
     // De-serialize rotor rpm (rmp0)
-    rpm0 = data[14];
-    status.rotor_rpm = rpm0;
+    status.rotor_rpm = data[14];
 
-    // De-serialize setpoint {0-3}
-    setpoint = data[15];
-    status.state = setpoint;
+    // De-serialize rotor rpm (rmp0)
+    status.rotor_rpm_avg = data[15];
+    
+    // De-serialize setpoint {0-3}    
+    status.state = data[16];
+
+    // Rotor fault
+    status.rotor_fault = data[17];
+
+    // Temperature fault
+    status.temp_fault = data[18];
 
     mqtt_update_rotor_status(&status);
-    ESP_LOGI(TAG, "Rotor data parsed.");
+    //ESP_LOGI(TAG, "Rotor data parsed.");
 }
 
 /**
