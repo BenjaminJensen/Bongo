@@ -30,15 +30,15 @@ void mqttw_init(void* client) {
   sub_table_cnt = -1;
 }
 
-bool mqttw_publish(const char* topic, const char* data, int qos) {
+bool mqttw_publish(const char* topic, const char* data, int qos, int retain) {
   bool ret = false;
 
   /** START WRAP **/
   if(xSemaphoreTake( pubMutex, 100 / portTICK_PERIOD_MS ) == pdTRUE) {
     int msg_id;
     if(local_client != NULL) {
-      msg_id = esp_mqtt_client_publish(local_client, topic, data, 0, qos, 0);
-      //ESP_LOGI(TAG, "sent publish successful, msg_id=%d", msg_id);
+      msg_id = esp_mqtt_client_publish(local_client, topic, data, 0, qos, retain);
+      //ESP_LOGI(TAG, "sent publish successful [%s], msg_id=%d", topic,  msg_id);
       ret = true;
     }
     else {
@@ -47,6 +47,9 @@ bool mqttw_publish(const char* topic, const char* data, int qos) {
    	// Release Mutex
      xSemaphoreGive( pubMutex );
 	}
+  else {
+    ESP_LOGW( TAG, "Unable to take sem in \"mqttw_publish\" [%s]", topic);
+  }
   /** End WRAP **/
 
   return ret;

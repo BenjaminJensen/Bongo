@@ -7,7 +7,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "bme280_wrapper.h"
-
+#include "sensor_helper.h"
 #include "mqtt.h"
 
 #define SLAVE_ID 10
@@ -42,22 +42,10 @@ SemaphoreHandle_t sem_rs485;
 /************************************
 * Data
 ************************************/
-static struct  {
-	int32_t temp;
-	uint32_t pres;
-	uint32_t humi;
-	int16_t mtemp;
-    uint8_t rpm0;
-
-} status_data;
 
 static void com_task();
 static void get_rotor_state(void);
 static void parse_rotor_state(uint8_t *);
-static float convert_bme280_t_raw_to_float(int32_t temp);
-static float convert_bme280_h_raw_to_float(uint32_t humidity);
-static float convert_bme280_p_raw_to_float(uint32_t pressure);
-static float convert_ds18b20(int16_t raw);
 
 /************************************
 * Function definitions
@@ -113,12 +101,6 @@ void com_set_rotor_speed(uint8_t speed) {
 	}
 }
 
-void com_set_bme280_data(int32_t temp, uint32_t pres, uint32_t humi) {
-    status_data.temp = temp;
-    status_data.pres = pres;
-    status_data.humi = humi;
-}
-
 void com_task() {
     TickType_t xLastWakeTime;
 
@@ -126,8 +108,21 @@ void com_task() {
 
     xLastWakeTime = xTaskGetTickCount();
     while(1) {
+        // Get and publish rotor state
         get_rotor_state();
         
+        // Get and publish in-pre state
+        //TODO
+        
+        // Get and publish in-pre state
+        //TODO
+
+        // Get and publish in-pre state
+        //TODO
+
+        // Get and publish in-pre state
+        //TODO
+
         // Wait for the next cycle.
         vTaskDelayUntil( &xLastWakeTime, 1000 / portTICK_PERIOD_MS );
     }
@@ -240,54 +235,4 @@ static void parse_rotor_state(uint8_t *data) {
     status.temp_fault = data[18];
 
     mqtt_update_rotor_status(&status);
-    //ESP_LOGI(TAG, "Rotor data parsed.");
-}
-
-/**
- * Convert raw temperature from BME280 to float
- * See:
- */
-static float convert_bme280_t_raw_to_float(int32_t temp) {
-    float val = 0;
-    val = (float)temp / 100.0f;
-    return val;
-}
-
-/**
- * Convert raw humidity from BME280 to float
- * See:
- */
-static float convert_bme280_h_raw_to_float(uint32_t humidity) {
-    float val = 0;
-    val = (float)humidity / 1024.0f;
-    return val;
-}
-
-/**
- * Convert raw pressure from BME280 to float
- * See:
- */
-static float convert_bme280_p_raw_to_float(uint32_t pressure) {
-    float val = 0;
-    val = (float)pressure / 1000.0f; // Pa
-    val /= 10; // Convert into hPa
-    return val;
-}
-
-/**
- * Convert raw data from a DS18b20 temperature sensor to float
- */
-static float convert_ds18b20(int16_t raw) {
-    float frac = 0.0f;
-    
-    if(raw & 0x08)
-        frac += 0.5;
-    if(raw & 0x04)
-        frac += 0.25;
-    if(raw & 0x02)
-        frac += 0.125;
-    if(raw & 0x01)
-        frac += 0.065;
-
-    return (raw >> 4) + frac;
 }

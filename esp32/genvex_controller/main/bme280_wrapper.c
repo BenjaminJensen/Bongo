@@ -5,16 +5,18 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "mqtt.h"
+#include "sensor_helper.h"
 
 /************************************
 * SPI
 ************************************/
 #define BME280_HOST    HSPI_HOST
 
-#define PIN_NUM_MISO 27
+#define PIN_NUM_MISO 26
 #define PIN_NUM_MOSI 13
 #define PIN_NUM_CLK  14
-#define PIN_NUM_CS   15
+#define PIN_NUM_CS   27
 
 static spi_bus_config_t buscfg;
 static spi_device_interface_config_t devcfg;
@@ -109,7 +111,7 @@ int8_t setup_bme280() {
 void bme280_task() {
 	static uint8_t state = 0;
 	int8_t rslt = BME280_OK;
-	
+	uint8_t sample_cnt = 0;
 	// Setup FreeRTOS task
 
 	while(1) {
@@ -124,7 +126,16 @@ void bme280_task() {
 				vTaskDelay( 100 / portTICK_PERIOD_MS);
 				struct bme280_data tmp_data;
 				rslt = bme280_get_sensor_data(BME280_ALL, &tmp_data, &dev);
-
+				
+				if(rslt == BME280_OK) {
+					sample_cnt++;
+					if(sample_cnt >= 10) {
+						// Publish data
+						sample_cnt = 0;
+						mqtt_update_bme280_status(convert_bme280_t_raw_to_float(tmp_data.temperature), convert_bme280_p_raw_to_float(tmp_data.pressure), convert_bme280_h_raw_to_float(tmp_data.humidity));
+					}
+					
+				}
 				if( sem_bme280_data != NULL ) {
 					if( xSemaphoreTake( sem_bme280_data, ( TickType_t ) 10 ) == pdTRUE ) {
 						comp_data.temperature = tmp_data.temperature;
@@ -140,11 +151,7 @@ void bme280_task() {
 					ESP_LOGW(TAG, "BME280 data Mutex is NULL \"bme280_task\"");
 				}
 
-				float temp = comp_data.temperature / 100.0f;
-            	float pres = comp_data.pressure / 1000.0f;
-            	float humi = comp_data.humidity / 1024.0f;
-
-				ESP_LOGV(TAG,"BME280: t: %f, p: %f, h: %f",temp,pres , humi);
+				//ESP_LOGI(TAG,"BME280: t: %f, p: %f, h: %f",temp,pres , humi);
 				// 840 uS
 				rslt = bme280_set_sensor_mode(BME280_FORCED_MODE, &dev);
 				break;	
