@@ -12,6 +12,7 @@
 #include "com.h"
 #include "bme280_wrapper.h"
 #include "control.h"
+#include "tcp_logger.h"
 
 static const char *TAG = "GENVEX";
 
@@ -75,10 +76,11 @@ void app_main()
 
     nvs_flash_init();
     wifi_init();
+    tcp_logger_init();
+
     // New start
     control_init();
     setup_bme280();
     com_init();
-
     mqtt_init();
 }
