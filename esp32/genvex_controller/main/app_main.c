@@ -67,7 +67,7 @@ void app_main()
     ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
     ESP_LOGI(TAG, "[APP] IDF version: %s", esp_get_idf_version());
 
-    esp_log_level_set("*", ESP_LOG_INFO);
+    esp_log_level_set("*", ESP_LOG_WARN);
     esp_log_level_set("MQTT_CLIENT", ESP_LOG_VERBOSE);
     esp_log_level_set("TRANSPORT_TCP", ESP_LOG_VERBOSE);
     esp_log_level_set("TRANSPORT_SSL", ESP_LOG_VERBOSE);
@@ -77,6 +77,10 @@ void app_main()
     nvs_flash_init();
     wifi_init();
     tcp_logger_init();
+
+    // Redirect ESP LOG to logger module
+    // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/system/log.html
+    esp_log_set_vprintf(&_log_vprintf);
 
     // New start
     control_init();

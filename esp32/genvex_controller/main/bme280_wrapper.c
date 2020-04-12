@@ -119,6 +119,9 @@ void bme280_task() {
 			case 0:
 				// 840 uS
 				rslt = bme280_set_sensor_mode(BME280_FORCED_MODE, &dev);
+				if(rslt != BME280_OK) {
+					ESP_LOGW(TAG, "Unable to set sensor mode: %d", rslt);
+				}
 				state++;
 				break;
 			case 1:// 2.4 mS
@@ -136,6 +139,10 @@ void bme280_task() {
 					}
 					
 				}
+				else {
+					ESP_LOGW(TAG, "Reading sensor failed: %d", rslt);
+				}
+
 				if( sem_bme280_data != NULL ) {
 					if( xSemaphoreTake( sem_bme280_data, ( TickType_t ) 10 ) == pdTRUE ) {
 						comp_data.temperature = tmp_data.temperature;
@@ -157,7 +164,8 @@ void bme280_task() {
 				break;	
 			default:
 				state = 0;
-		}
+				ESP_LOGW(TAG, "Default state reached in \"bme280_task\": %d", state);
+		}	
 		if(rslt != BME280_OK) {
 			ESP_LOGI(TAG,"task error: state(%d), BME280(%d) \"bme280_task\"", state, rslt);
 		}

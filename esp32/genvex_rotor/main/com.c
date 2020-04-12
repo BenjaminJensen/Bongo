@@ -54,10 +54,18 @@ static void com_task();
 static void send_status();
 static void com_parse_com(uint8_t c);
 
+#define TRACE_PIN (32)
 /************************************
 * Function definitions
 ************************************/
+static void init_trace_gpio() {
+	// Setup OUTPUT
+	gpio_set_direction(TRACE_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(TRACE_PIN, 0);
+}
+
 void com_init() {
+    init_trace_gpio();
     uart_config_t uart_config = {
         .baud_rate = BAUD_RATE,
         .data_bits = UART_DATA_8_BITS,
@@ -98,9 +106,9 @@ void com_task() {
     int i;
     ESP_LOGI(TAG, "UART start recieve loop.\r\n");
     while(1) {
-        int len = uart_read_bytes(UART_PORT, data, BUF_SIZE, PACKET_READ_TICS);
+        int len = uart_read_bytes(UART_PORT, data, BUF_SIZE, 0);
         if(len <= 0) {
-            vTaskDelay( 10 / portTICK_PERIOD_MS);
+            vTaskDelay( 2 / portTICK_PERIOD_MS);
         }
         else {
             ESP_LOGD(TAG, "UART data received(%d).\r\n", len);
@@ -126,6 +134,7 @@ static void com_parse_com(uint8_t c) {
 
     switch(state) {
         case 0:
+            gpio_set_level(TRACE_PIN, 1);
             if(c == 0xAA)
                 state = 1;
             break;
@@ -152,6 +161,7 @@ static void com_parse_com(uint8_t c) {
             if(slave_id == SLAVE_ID) {
                 com_eval_cmd(cmd, c);
             }
+            gpio_set_level(TRACE_PIN, 0);
             state = 0;
             break;
         default:
